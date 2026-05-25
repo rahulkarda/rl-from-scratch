@@ -2,21 +2,19 @@
 import random
 from collections import deque
 from dataclasses import dataclass
-from typing import List
-
+from typing import Any, Deque, List
 
 @dataclass
 class Transition:
-    state: object
+    state: Any
     action: int
     reward: float
-    next_state: object
+    next_state: Any
     done: bool
-
 
 class ReplayBuffer:
     def __init__(self, capacity: int = 100_000):
-        self.buffer: deque = deque(maxlen=capacity)
+        self.buffer: Deque[Transition] = deque(maxlen=capacity)
 
     def push(self, t: Transition) -> None:
         self.buffer.append(t)
