@@ -20,6 +20,8 @@ class ReplayBuffer:
         self.buffer.append(t)
 
     def sample(self, batch_size: int) -> List[Transition]:
+        if batch_size > len(self.buffer):
+            raise ValueError(f"Cannot sample batch_size={batch_size} from buffer with {len(self.buffer)} transitions.")
         return random.sample(self.buffer, batch_size)
 
     def __len__(self) -> int:
