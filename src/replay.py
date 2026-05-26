@@ -14,6 +14,24 @@ class Transition:
     done: bool
 
 class ReplayBuffer:
+    """
+    Uniform replay buffer for storing and sampling transitions.
+
+    Stores transitions as a fixed-size FIFO queue (deque) with uniform sampling.
+    Used in value-based RL algorithms (e.g., DQN) to break correlation between sequential samples.
+
+    Usage:
+        buf = ReplayBuffer(capacity=100_000)
+        buf.push(Transition(...))
+        batch = buf.sample(batch_size=32)
+
+    Limitations:
+        - Only supports uniform sampling (no prioritization).
+        - Assumes transitions are dataclass objects (Transition).
+        - Not thread-safe; only use from one thread/process.
+        - Serialization via .save/.load uses dict conversion for compatibility.
+    """
+
     def __init__(self, capacity: int = 100_000):
         self.buffer: Deque[Transition] = deque(maxlen=capacity)
 
