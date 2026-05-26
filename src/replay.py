@@ -1,8 +1,9 @@
 """Uniform replay buffer. The first thing every value-based algorithm needs."""
 import random
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Any, Deque, List
+import pickle
 
 @dataclass
 class Transition:
@@ -26,3 +27,22 @@ class ReplayBuffer:
 
     def __len__(self) -> int:
         return len(self.buffer)
+
+    def save(self, path: str) -> None:
+        """
+        Save buffer contents to a file using pickle.
+        """
+        # We store list of transition dicts to avoid issues with dataclass serialization
+        with open(path, 'wb') as f:
+            pickle.dump([asdict(t) for t in self.buffer], f)
+
+    def load(self, path: str) -> None:
+        """
+        Load buffer contents from a file saved by .save().
+        """
+        with open(path, 'rb') as f:
+            items = pickle.load(f)
+        self.buffer.clear()
+        for item in items:
+            t = Transition(**item)
+            self.buffer.append(t)
