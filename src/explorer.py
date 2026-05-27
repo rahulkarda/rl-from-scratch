@@ -25,7 +25,7 @@ class EpsilonGreedyExplorer:
         Returns current epsilon value, linearly decayed.
         """
         eps = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * \
-            np.exp(-1.0 * self.steps_done / self.epsilon_decay)
+            max(0.0, 1.0 - self.steps_done / self.epsilon_decay)
         return float(eps)
 
     def select_action(self, q_values: np.ndarray | list) -> int:
