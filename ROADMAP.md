@@ -1,10 +1,10 @@
 # Roadmap
 
 ## Phase 1: foundations
-- [ ] Replay buffer (uniform)
-- [ ] Epsilon-greedy explorer with decay schedules
+- [x] Replay buffer (uniform)
+- [x] Epsilon-greedy explorer with decay schedules
 - [ ] Logger that writes scalar metrics + episode returns to disk
-- [ ] Seed control utility
+- [x] Seed control utility
 
 ## Phase 2: value-based
 - [ ] DQN on CartPole
