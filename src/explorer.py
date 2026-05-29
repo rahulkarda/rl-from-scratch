@@ -8,13 +8,13 @@ class EpsilonGreedyExplorer:
     Usage:
         explorer = EpsilonGreedyExplorer(
             epsilon_start=1.0,
-            epsilon_final=0.05,
+            epsilon_final=0.1,
             epsilon_decay=10000
         )
         action = explorer.select_action(q_values)
         explorer.step()
     """
-    def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.05, epsilon_decay: int = 10000):
+    def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.1, epsilon_decay: int = 10000):
         self.epsilon_start = epsilon_start
         self.epsilon_final = epsilon_final
         self.epsilon_decay = epsilon_decay
