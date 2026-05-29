@@ -31,3 +31,16 @@ def moving_average(values, window_size: int):
     if len(values) < window_size:
         return np.array([])
     return np.convolve(values, np.ones(window_size)/window_size, mode='valid')
+
+
+def running_average(values):
+    """
+    Compute running (cumulative) average for a sequence.
+    Returns np.ndarray with same length as values.
+    """
+    values = np.array(values)
+    if len(values) == 0:
+        return np.array([])
+    cumsum = np.cumsum(values)
+    counts = np.arange(1, len(values)+1)
+    return cumsum / counts
