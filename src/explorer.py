@@ -44,6 +44,28 @@ class EpsilonGreedyExplorer:
         else:
             return int(np.argmax(q_values))
 
+    def sample_action(self, batch_q_values: np.ndarray | list) -> list:
+        """
+        Select actions for a batch of Q-value vectors (e.g., batch from policy).
+
+        Args:
+            batch_q_values: array-like shape (batch_size, num_actions)
+
+        Returns:
+            List of action indices (int)
+        """
+        eps = self.epsilon()
+        batch_q_values = np.array(batch_q_values)
+        batch_size = batch_q_values.shape[0]
+        num_actions = batch_q_values.shape[1]
+        actions = []
+        for i in range(batch_size):
+            if random.random() < eps:
+                actions.append(random.randrange(num_actions))
+            else:
+                actions.append(int(np.argmax(batch_q_values[i])))
+        return actions
+
     def step(self) -> None:
         """
         Increments the internal step counter (for decay).
