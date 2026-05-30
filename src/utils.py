@@ -26,12 +26,16 @@ def moving_average(values, window_size: int):
     Returns:
         np.ndarray of moving averages (len = len(values) - window_size + 1)
     """
-    values = np.array(values)
+    values = np.array(values, dtype=float)
     if window_size < 1:
         raise ValueError("window_size must be >= 1")
-    if len(values) < window_size:
+    n = len(values)
+    if n < window_size:
         return np.array([])
-    return np.convolve(values, np.ones(window_size)/window_size, mode='valid')
+    # Compute moving average using efficient cumulative sum
+    cumsum = np.cumsum(values)
+    cumsum[window_size:] = cumsum[window_size:] - cumsum[:-window_size]
+    return cumsum[window_size-1:] / window_size
 
 
 def running_average(values):
@@ -39,9 +43,9 @@ def running_average(values):
     Compute running (cumulative) average for a sequence.
     Returns np.ndarray with same length as values.
     """
-    values = np.array(values)
-    if len(values) == 0:
+    values = np.array(values, dtype=float)
+    n = len(values)
+    if n == 0:
         return np.array([])
     cumsum = np.cumsum(values)
-    counts = np.arange(1, len(values)+1)
-    return cumsum / counts
+    return cumsum / np.arange(1, n+1)
