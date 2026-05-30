@@ -66,6 +66,19 @@ class EpsilonGreedyExplorer:
                 actions.append(int(np.argmax(batch_q_values[i])))
         return actions
 
+    def random_action(self, num_actions: int) -> int:
+        """
+        Selects a random action index from [0, num_actions-1].
+        Useful for pure exploration or debugging.
+
+        Args:
+            num_actions: Total number of actions (int)
+
+        Returns:
+            action index (int)
+        """
+        return random.randrange(num_actions)
+
     def step(self) -> None:
         """
         Increments the internal step counter (for decay).
