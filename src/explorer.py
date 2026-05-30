@@ -90,3 +90,17 @@ class EpsilonGreedyExplorer:
         Resets the step counter to zero.
         """
         self.steps_done = 0
+
+    def get_epsilon_schedule(self, max_steps: int = None) -> np.ndarray:
+        """
+        Returns an array of epsilon values over steps for plotting/analysis.
+        Args:
+            max_steps: Number of steps to include (defaults to epsilon_decay)
+        Returns:
+            np.ndarray of epsilon values shape (max_steps,)
+        """
+        if max_steps is None:
+            max_steps = self.epsilon_decay
+        steps = np.arange(max_steps)
+        epsilons = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * np.maximum(0.0, 1.0 - steps / self.epsilon_decay)
+        return epsilons
