@@ -22,15 +22,17 @@ class EpsilonGreedyExplorer:
 
     def epsilon(self) -> float:
         """
-        Returns current epsilon value, linearly decayed.
+        Returns current epsilon value, linearly decayed between start and final.
         """
-        eps = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * \
-            max(0.0, 1.0 - self.steps_done / self.epsilon_decay)
+        decay_ratio = min(self.steps_done / self.epsilon_decay, 1.0)
+        eps = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
         return float(eps)
 
     def select_action(self, q_values: np.ndarray | list) -> int:
         """
-        Selects action according to epsilon-greedy policy.
+        Selects action using epsilon-greedy policy.
+        With probability epsilon, returns a random action.
+        Otherwise, returns the action with the highest Q-value (argmax).
 
         Args:
             q_values: Array-like (list or np.ndarray) of action values.
@@ -39,14 +41,19 @@ class EpsilonGreedyExplorer:
             action index (int)
         """
         eps = self.epsilon()
-        if random.random() < eps:
-            return random.randrange(len(q_values))
-        else:
-            return int(np.argmax(q_values))
+        num_actions = len(q_values)
+        if num_actions == 0:
+            raise ValueError("No actions provided to select_action.")
+        rand = random.random()
+        if rand < eps:
+            return random.randrange(num_actions)
+        # np.argmax always returns the lowest index in case of ties
+        return int(np.argmax(q_values))
 
     def sample_action(self, batch_q_values: np.ndarray | list) -> list:
         """
-        Select actions for a batch of Q-value vectors (e.g., batch from policy).
+        Select actions for a batch of Q-value vectors.
+        Each action is chosen with epsilon-greedy per sample.
 
         Args:
             batch_q_values: array-like shape (batch_size, num_actions)
@@ -56,8 +63,7 @@ class EpsilonGreedyExplorer:
         """
         eps = self.epsilon()
         batch_q_values = np.array(batch_q_values)
-        batch_size = batch_q_values.shape[0]
-        num_actions = batch_q_values.shape[1]
+        batch_size, num_actions = batch_q_values.shape
         actions = []
         for i in range(batch_size):
             if random.random() < eps:
@@ -77,6 +83,8 @@ class EpsilonGreedyExplorer:
         Returns:
             action index (int)
         """
+        if num_actions < 1:
+            raise ValueError("num_actions must be >= 1")
         return random.randrange(num_actions)
 
     def step(self) -> None:
@@ -102,5 +110,6 @@ class EpsilonGreedyExplorer:
         if max_steps is None:
             max_steps = self.epsilon_decay
         steps = np.arange(max_steps)
-        epsilons = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * np.maximum(0.0, 1.0 - steps / self.epsilon_decay)
+        decay_ratio = np.minimum(steps / self.epsilon_decay, 1.0)
+        epsilons = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
         return epsilons
