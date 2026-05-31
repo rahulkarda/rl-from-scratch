@@ -4,7 +4,15 @@ import torch
 
 def set_seed(seed: int) -> None:
     """
-    Set seed for Python, NumPy, and PyTorch (CPU/CUDA) for reproducibility.
+    Set random seed for reproducibility across Python, NumPy, and PyTorch.
+
+    - Python: random.seed
+    - NumPy: np.random.seed
+    - PyTorch (CPU and CUDA): torch.manual_seed, torch.cuda.manual_seed_all
+    - Ensures deterministic CUDA behavior if available.
+
+    Args:
+        seed (int): Seed value to set.
     """
     random.seed(seed)
     np.random.seed(seed)
