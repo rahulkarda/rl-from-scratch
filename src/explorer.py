@@ -87,6 +87,22 @@ class EpsilonGreedyExplorer:
             raise ValueError("num_actions must be >= 1")
         return random.randrange(num_actions)
 
+    def argmax_action(self, q_values: np.ndarray | list) -> int:
+        """
+        Selects the action with the highest Q-value (greedy).
+        Ignores epsilon, always returns argmax.
+
+        Args:
+            q_values: Array-like (list or np.ndarray) of action values.
+
+        Returns:
+            action index (int)
+        """
+        num_actions = len(q_values)
+        if num_actions == 0:
+            raise ValueError("No actions provided to argmax_action.")
+        return int(np.argmax(q_values))
+
     def step(self) -> None:
         """
         Increments the internal step counter (for decay).
