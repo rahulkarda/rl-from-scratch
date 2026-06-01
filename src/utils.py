@@ -27,6 +27,13 @@ def moving_average(values, window_size: int):
     """
     Compute simple moving average over a list or array.
 
+    This returns a sequence of averages where each average is computed over a
+    sliding window of length `window_size`.
+
+    Example:
+        moving_average([1, 2, 3, 4, 5], window_size=3)
+        # returns array([2., 3., 4.])
+
     Args:
         values: Sequence of numbers (list, np.ndarray).
         window_size: Size of window (int).
@@ -50,6 +57,12 @@ def running_average(values):
     """
     Compute running (cumulative) average for a sequence.
     Returns np.ndarray with same length as values.
+
+    Each value is the average of all previous values up to that index.
+
+    Example:
+        running_average([1, 2, 3, 4])
+        # returns array([1., 1.5, 2., 2.5])
     """
     values = np.array(values, dtype=float)
     n = len(values)
