@@ -3,7 +3,7 @@
 ## Phase 1: foundations
 - [x] Replay buffer (uniform)
 - [x] Epsilon-greedy explorer with decay schedules
-- [ ] Logger that writes scalar metrics + episode returns to disk
+- [x] Logger that writes scalar metrics + episode returns to disk
 - [x] Seed control utility
 
 ## Phase 2: value-based
