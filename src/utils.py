@@ -6,11 +6,6 @@ def set_seed(seed: int) -> None:
     """
     Set random seed for reproducibility across Python, NumPy, and PyTorch.
 
-    - Python: random.seed
-    - NumPy: np.random.seed
-    - PyTorch (CPU and CUDA): torch.manual_seed, torch.cuda.manual_seed_all
-    - Ensures deterministic CUDA behavior if available.
-
     Args:
         seed (int): Seed value to set.
     """
@@ -23,42 +18,16 @@ def set_seed(seed: int) -> None:
         torch.backends.cudnn.benchmark = False
 
 
-def moving_average(values, window_size: int):
-    """
-    Compute simple moving average over a list or array.
-
-    This returns a sequence of averages where each average is computed over a
-    sliding window of length `window_size`.
-
-    Example:
-        moving_average([1, 2, 3, 4, 5], window_size=3)
-        # returns array([2., 3., 4.])
-
-    Args:
-        values: Sequence of numbers (list, np.ndarray).
-        window_size: Size of window (int).
-
-    Returns:
-        np.ndarray of moving averages (len = len(values) - window_size + 1)
-    """
-    values = np.array(values, dtype=float)
-    if window_size < 1:
-        raise ValueError("window_size must be >= 1")
-    n = len(values)
-    if n < window_size:
-        return np.array([])
-    # Compute moving average using efficient cumulative sum
-    cumsum = np.cumsum(values)
-    cumsum[window_size:] = cumsum[window_size:] - cumsum[:-window_size]
-    return cumsum[window_size-1:] / window_size
-
-
 def running_average(values):
     """
     Compute running (cumulative) average for a sequence.
-    Returns np.ndarray with same length as values.
-
     Each value is the average of all previous values up to that index.
+
+    Args:
+        values: Sequence of numbers (list, np.ndarray).
+
+    Returns:
+        np.ndarray of running averages (same length as values).
 
     Example:
         running_average([1, 2, 3, 4])
@@ -70,3 +39,31 @@ def running_average(values):
         return np.array([])
     cumsum = np.cumsum(values)
     return cumsum / np.arange(1, n+1)
+
+
+def moving_average(values, window_size: int):
+    """
+    Compute simple moving average over a list or array.
+
+    Returns a sequence of averages where each average is computed over a sliding window of length `window_size`.
+
+    Args:
+        values: Sequence of numbers (list, np.ndarray).
+        window_size: Size of window (int).
+
+    Returns:
+        np.ndarray of moving averages (len = len(values) - window_size + 1)
+
+    Example:
+        moving_average([1, 2, 3, 4, 5], window_size=3)
+        # returns array([2., 3., 4.])
+    """
+    values = np.array(values, dtype=float)
+    if window_size < 1:
+        raise ValueError("window_size must be >= 1")
+    n = len(values)
+    if n < window_size:
+        return np.array([])
+    cumsum = np.cumsum(values)
+    cumsum[window_size:] = cumsum[window_size:] - cumsum[:-window_size]
+    return cumsum[window_size-1:] / window_size
