@@ -4,14 +4,21 @@ from typing import Dict, Any
 
 class Logger:
     """
-    Simple logger that writes scalar metrics and episode returns to disk (CSV).
+    Logger for writing scalar metrics and episode returns to disk (CSV).
 
     Usage:
         logger = Logger(log_dir="logs/test_run")
         logger.log_scalar("loss", 0.32, step=10)
         logger.log_episode_return(42.0, episode=3)
+        logger.log_scalars({"loss": 0.32, "epsilon": 0.13}, step=10)
     """
     def __init__(self, log_dir: str):
+        """
+        Initialize logger and create CSV files if they do not exist.
+
+        Args:
+            log_dir (str): Directory to store logs.
+        """
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
         self.scalar_path = os.path.join(log_dir, "scalars.csv")
@@ -20,12 +27,18 @@ class Logger:
         self._init_returns_file()
 
     def _init_scalar_file(self):
+        """
+        Create scalars.csv file with header if it does not exist.
+        """
         if not os.path.isfile(self.scalar_path):
             with open(self.scalar_path, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["step", "name", "value"])
 
     def _init_returns_file(self):
+        """
+        Create episode_returns.csv file with header if it does not exist.
+        """
         if not os.path.isfile(self.returns_path):
             with open(self.returns_path, "w", newline='') as f:
                 writer = csv.writer(f)
@@ -33,25 +46,38 @@ class Logger:
 
     def log_scalar(self, name: str, value: float, step: int):
         """
-        Log a scalar metric (e.g., loss, epsilon) at a given step.
+        Log a single scalar metric (e.g., loss, epsilon) for a given step.
+
+        Args:
+            name (str): Metric name.
+            value (float): Metric value.
+            step (int): Step number.
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([step, name, value])
 
-    def log_episode_return(self, episode_return: float, episode: int):
-        """
-        Log episode return (reward sum) for a given episode.
-        """
-        with open(self.returns_path, "a", newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([episode, episode_return])
-
     def log_scalars(self, scalars: Dict[str, Any], step: int):
         """
-        Log multiple scalar metrics at given step.
+        Log multiple scalar metrics for a given step.
+
+        Args:
+            scalars (dict): Mapping from metric names to values.
+            step (int): Step number.
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
             for name, value in scalars.items():
                 writer.writerow([step, name, value])
+
+    def log_episode_return(self, episode_return: float, episode: int):
+        """
+        Log episode return (sum of rewards) for a given episode.
+
+        Args:
+            episode_return (float): Total reward for episode.
+            episode (int): Episode index.
+        """
+        with open(self.returns_path, "a", newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([episode, episode_return])
