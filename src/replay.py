@@ -33,30 +33,66 @@ class ReplayBuffer:
     """
 
     def __init__(self, capacity: int = 100_000):
+        """
+        Initialize the replay buffer with a fixed capacity.
+
+        Args:
+            capacity (int): Maximum number of transitions to store.
+        """
         self.buffer: Deque[Transition] = deque(maxlen=capacity)
 
     def push(self, t: Transition) -> None:
+        """
+        Add a transition to the buffer. Oldest is discarded if capacity is reached.
+
+        Args:
+            t (Transition): Transition to store.
+        """
         self.buffer.append(t)
 
     def sample(self, batch_size: int) -> List[Transition]:
+        """
+        Uniformly sample a batch of transitions from the buffer.
+
+        Args:
+            batch_size (int): Number of transitions to sample.
+
+        Returns:
+            List[Transition]: List of sampled transitions.
+
+        Raises:
+            ValueError: If batch_size > number of transitions in buffer.
+        """
         if batch_size > len(self.buffer):
             raise ValueError(f"Cannot sample batch_size={batch_size} from buffer with {len(self.buffer)} transitions.")
         return random.sample(self.buffer, batch_size)
 
     def __len__(self) -> int:
+        """
+        Returns the current number of transitions stored.
+
+        Returns:
+            int: Number of transitions in the buffer.
+        """
         return len(self.buffer)
 
     def save(self, path: str) -> None:
         """
         Save buffer contents to a file using pickle.
+        Stores as a list of transition dicts for compatibility.
+
+        Args:
+            path (str): File path to save buffer.
         """
-        # We store list of transition dicts to avoid issues with dataclass serialization
         with open(path, 'wb') as f:
             pickle.dump([asdict(t) for t in self.buffer], f)
 
     def load(self, path: str) -> None:
         """
-        Load buffer contents from a file saved by .save().
+        Load buffer contents from a file previously saved by .save().
+
+        Args:
+            path (str): File path to load buffer from.
         """
         with open(path, 'rb') as f:
             items = pickle.load(f)
