@@ -1,3 +1,13 @@
+"""
+Basic utilities for RL experiments: seeding, running/moving averages.
+
+Rationale:
+- set_seed: Reproducibility is critical in RL due to noisy training and variance. Sets seeds for Python, NumPy, and PyTorch.
+- running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
+- moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
+
+These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
+"""
 import random
 import numpy as np
 import torch
