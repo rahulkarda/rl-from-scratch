@@ -12,8 +12,19 @@ def test_epsilon_greedy():
     greedy_actions = [explorer.select_action(q_values) for _ in range(10)]
     assert all(a == 2 for a in greedy_actions)
 
+def test_argmax_action():
+    explorer = EpsilonGreedyExplorer()
+    q_values = [0.5, 0.1, 7.3, 3.2]
+    action = explorer.argmax_action(q_values)
+    assert action == 2  # 7.3 is highest
+    # Ties: lowest index
+    q_values = [7.3, 7.3, 0.1]
+    action = explorer.argmax_action(q_values)
+    assert action == 0
+
 def run():
     test_epsilon_greedy()
+    test_argmax_action()
     print("EpsilonGreedyExplorer basic test passed.")
 
 if __name__ == "__main__":
