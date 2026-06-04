@@ -1,4 +1,16 @@
-"""Uniform replay buffer. The first thing every value-based algorithm needs."""
+"""Uniform replay buffer for RL: stores transitions as FIFO, enables random sampling, and provides simple serialization.
+
+Rationale:
+- FIFO queue (deque) ensures oldest transitions are discarded first, matching classic DQN-style replay.
+- Uniform sampling breaks temporal correlations for value-based algorithms.
+- Serialization (.save/.load) stores as dicts for compatibility and easy inspection.
+- Not thread-safe; intended for single-process use.
+
+Usage:
+    buf = ReplayBuffer(capacity=100_000)
+    buf.push(Transition(...))
+    batch = buf.sample(batch_size=32)
+"""
 import random
 from collections import deque
 from dataclasses import dataclass, asdict
