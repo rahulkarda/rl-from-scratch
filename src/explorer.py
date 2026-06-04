@@ -5,7 +5,12 @@ class EpsilonGreedyExplorer:
     """
     Epsilon-greedy action selection with support for decay schedules.
 
-    Usage:
+    Rationale:
+        Classic DQN and value-based RL algorithms rely on epsilon-greedy for balancing exploration and exploitation.
+        This class allows flexible control of epsilon decay, batch action sampling, and pure greedy/random selection.
+        Decay schedule is linear (step-based). Used for reproducible exploration and reward curve matching.
+
+    Usage example:
         explorer = EpsilonGreedyExplorer(
             epsilon_start=1.0,
             epsilon_final=0.1,
