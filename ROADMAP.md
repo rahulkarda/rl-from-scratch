@@ -7,7 +7,7 @@
 - [x] Seed control utility
 
 ## Phase 2: value-based
-- [ ] DQN on CartPole
+- [x] DQN on CartPole
 - [ ] Double DQN
 - [ ] Dueling DQN
 - [ ] Prioritized replay

@@ -33,7 +33,34 @@ def main():
     buffer = ReplayBuffer(capacity=10000)
     explorer = EpsilonGreedyExplorer(epsilon_start=1.0, epsilon_final=0.01, epsilon_decay=10000)
     logger = Logger(log_dir="logs/dqn_cartpole")
-    # TODO: training loop, loss, sampling, update, logging
+
+    num_episodes = 20  # tiny for initial loop test
+    episode_rewards = []
+    total_steps = 0
+    for ep in range(num_episodes):
+        obs, info = env.reset()
+        done = False
+        episode_reward = 0.0
+        while not done:
+            q_values = dqn(torch.tensor(obs, dtype=torch.float32).unsqueeze(0)).detach().numpy()[0]
+            action = explorer.select_action(q_values)
+            next_obs, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+            buffer.push(Transition(
+                state=obs,
+                action=action,
+                reward=reward,
+                next_state=next_obs,
+                done=done
+            ))
+            episode_reward += reward
+            obs = next_obs
+            explorer.step()
+            total_steps += 1
+        episode_rewards.append(episode_reward)
+        logger.log_episode_return(episode_reward, episode=ep)
+        logger.log_scalars({"epsilon": explorer.epsilon()}, step=total_steps)
+        print(f"Episode {ep}: return={episode_reward:.2f}, epsilon={explorer.epsilon():.4f}, steps={total_steps}")
 
 if __name__ == "__main__":
     main()
