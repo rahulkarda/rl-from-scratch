@@ -1,3 +1,17 @@
+"""
+DQN training loop for CartPole-v1: end-to-end example using minimal RL utilities.
+
+Rationale:
+- Implements classic DQN with a simple MLP, uniform replay, epsilon-greedy exploration, and basic logging.
+- Designed to match published reward curves and serve as a readable reference for value-based RL.
+- No wrappers, no stable-baselines: every piece is explicit for clarity and reproducibility.
+- Uses the provided ReplayBuffer, EpsilonGreedyExplorer, Logger, and set_seed utilities.
+
+Usage:
+    python dqn_cartpole.py
+
+This file is intentionally minimal for didactic purposes. See README for project goals.
+"""
 import gymnasium as gym
 import torch
 import torch.nn as nn
