@@ -44,11 +44,10 @@ def running_average(values):
         # returns array([1., 1.5, 2., 2.5])
     """
     values = np.array(values, dtype=float)
-    n = len(values)
-    if n == 0:
+    if values.size == 0:
         return np.array([])
     cumsum = np.cumsum(values)
-    return cumsum / np.arange(1, n+1)
+    return cumsum / (np.arange(1, values.size + 1))
 
 
 def moving_average(values, window_size: int):
@@ -71,9 +70,8 @@ def moving_average(values, window_size: int):
     values = np.array(values, dtype=float)
     if window_size < 1:
         raise ValueError("window_size must be >= 1")
-    n = len(values)
-    if n < window_size:
+    if values.size < window_size:
         return np.array([])
     cumsum = np.cumsum(values)
-    cumsum[window_size:] = cumsum[window_size:] - cumsum[:-window_size]
-    return cumsum[window_size-1:] / window_size
+    cumsum[window_size:] -= cumsum[:-window_size]
+    return cumsum[window_size - 1:] / window_size
