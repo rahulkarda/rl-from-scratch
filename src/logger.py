@@ -62,7 +62,7 @@ class Logger:
         Log multiple scalar metrics for a given step.
 
         Args:
-            scalars (dict): Mapping from metric names to values.
+            scalars (dict): Mapping from metric names to values (e.g. {"loss": 0.32, "epsilon": 0.1})
             step (int): Step number.
         """
         with open(self.scalar_path, "a", newline='') as f:
