@@ -3,21 +3,10 @@ import numpy as np
 
 class EpsilonGreedyExplorer:
     """
-    Epsilon-greedy action selection with support for decay schedules.
+    Epsilon-greedy action selection with decay schedules.
 
     Rationale:
-        Classic DQN and value-based RL algorithms rely on epsilon-greedy for balancing exploration and exploitation.
-        This class allows flexible control of epsilon decay, batch action sampling, and pure greedy/random selection.
-        Decay schedule is linear (step-based). Used for reproducible exploration and reward curve matching.
-
-    Usage example:
-        explorer = EpsilonGreedyExplorer(
-            epsilon_start=1.0,
-            epsilon_final=0.1,
-            epsilon_decay=10000
-        )
-        action = explorer.select_action(q_values)
-        explorer.step()
+        Used in value-based RL for balancing exploration/exploitation. Linear decay. Greedy/random modes. Batch support.
     """
     def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.1, epsilon_decay: int = 10000):
         self.epsilon_start = epsilon_start
@@ -26,45 +15,43 @@ class EpsilonGreedyExplorer:
         self.steps_done = 0
 
     def epsilon(self) -> float:
-        """
-        Returns current epsilon value, linearly decayed between start and final.
-        """
+        """Current epsilon decayed linearly."""
         decay_ratio = min(self.steps_done / self.epsilon_decay, 1.0)
-        eps = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
-        return float(eps)
+        return float(self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio))
 
     def select_action(self, q_values: np.ndarray | list) -> int:
         """
-        Selects action using epsilon-greedy policy.
-        With probability epsilon, returns a random action.
-        Otherwise, returns the action with the highest Q-value (argmax).
-
-        Args:
-            q_values: Array-like (list or np.ndarray) of action values.
-
-        Returns:
-            action index (int)
+        Epsilon-greedy action selection.
+        Returns random action with probability epsilon, else argmax.
         """
         eps = self.epsilon()
         num_actions = len(q_values)
         if num_actions == 0:
             raise ValueError("No actions provided to select_action.")
-        rand = random.random()
-        if rand < eps:
+        if random.random() < eps:
             return random.randrange(num_actions)
-        # np.argmax always returns the lowest index in case of ties
         return int(np.argmax(q_values))
+
+    def argmax_action(self, q_values: np.ndarray | list) -> int:
+        """
+        Greedy action selection (always argmax).
+        """
+        num_actions = len(q_values)
+        if num_actions == 0:
+            raise ValueError("No actions provided to argmax_action.")
+        return int(np.argmax(q_values))
+
+    def random_action(self, num_actions: int) -> int:
+        """
+        Random action index from [0, num_actions-1].
+        """
+        if num_actions < 1:
+            raise ValueError("num_actions must be >= 1")
+        return random.randrange(num_actions)
 
     def sample_action(self, batch_q_values: np.ndarray | list) -> list:
         """
-        Select actions for a batch of Q-value vectors.
-        Each action is chosen with epsilon-greedy per sample.
-
-        Args:
-            batch_q_values: array-like shape (batch_size, num_actions)
-
-        Returns:
-            List of action indices (int)
+        Batch epsilon-greedy action selection for array shape (batch_size, num_actions).
         """
         eps = self.epsilon()
         batch_q_values = np.array(batch_q_values)
@@ -77,60 +64,24 @@ class EpsilonGreedyExplorer:
                 actions.append(int(np.argmax(batch_q_values[i])))
         return actions
 
-    def random_action(self, num_actions: int) -> int:
-        """
-        Selects a random action index from [0, num_actions-1].
-        Useful for pure exploration or debugging.
-
-        Args:
-            num_actions: Total number of actions (int)
-
-        Returns:
-            action index (int)
-        """
-        if num_actions < 1:
-            raise ValueError("num_actions must be >= 1")
-        return random.randrange(num_actions)
-
-    def argmax_action(self, q_values: np.ndarray | list) -> int:
-        """
-        Selects the action with the highest Q-value (greedy).
-        Ignores epsilon, always returns argmax.
-
-        Args:
-            q_values: Array-like (list or np.ndarray) of action values.
-
-        Returns:
-            action index (int)
-        """
-        num_actions = len(q_values)
-        if num_actions == 0:
-            raise ValueError("No actions provided to argmax_action.")
-        return int(np.argmax(q_values))
-
     def step(self) -> None:
         """
-        Increments the internal step counter (for decay).
+        Increment step counter for epsilon decay.
         """
         self.steps_done += 1
 
     def reset(self) -> None:
         """
-        Resets the step counter to zero.
+        Reset step counter to zero.
         """
         self.steps_done = 0
 
     def get_epsilon_schedule(self, max_steps: int = None) -> np.ndarray:
         """
-        Returns an array of epsilon values over steps for plotting/analysis.
-        Args:
-            max_steps: Number of steps to include (defaults to epsilon_decay)
-        Returns:
-            np.ndarray of epsilon values shape (max_steps,)
+        Array of epsilon values over steps (for plotting).
         """
         if max_steps is None:
             max_steps = self.epsilon_decay
         steps = np.arange(max_steps)
         decay_ratio = np.minimum(steps / self.epsilon_decay, 1.0)
-        epsilons = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
-        return epsilons
+        return self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
