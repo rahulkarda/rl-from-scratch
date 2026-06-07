@@ -5,6 +5,7 @@ Rationale:
 - set_seed: Reproducibility is critical in RL due to noisy training and variance. Sets seeds for Python, NumPy, and PyTorch.
 - running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
 - moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
+- soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -75,3 +76,17 @@ def moving_average(values, window_size: int):
     cumsum = np.cumsum(values)
     cumsum[window_size:] -= cumsum[:-window_size]
     return cumsum[window_size - 1:] / window_size
+
+
+def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) -> None:
+    """
+    Polyak averaging for target network updates.
+    Copies parameters from `source` to `target` using:
+        target_param = tau * source_param + (1 - tau) * target_param
+    Args:
+        target (torch.nn.Module): Target network to update.
+        source (torch.nn.Module): Source network (e.g., online network).
+        tau (float): Mixing factor (0 < tau <= 1). tau=1 means hard update.
+    """
+    for target_param, source_param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
