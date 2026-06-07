@@ -1,11 +1,19 @@
 """
-Basic utilities for RL experiments: seeding, running/moving averages.
+Basic utilities for RL experiments: seeding, running/moving averages, and Polyak averaging.
 
 Rationale:
 - set_seed: Reproducibility is critical in RL due to noisy training and variance. Sets seeds for Python, NumPy, and PyTorch.
 - running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
 - moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
 - soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
+
+Examples:
+    set_seed(42)
+    ra = running_average([1, 2, 3, 4])  # array([1., 1.5, 2., 2.5])
+    ma = moving_average([1, 2, 3, 4, 5], window_size=3)  # array([2., 3., 4.])
+    # Polyak averaging for target networks:
+    soft_update(target_net, source_net, tau=0.005)
+    # tau=1.0 gives a hard update (copy params exactly)
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -83,10 +91,17 @@ def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) ->
     Polyak averaging for target network updates.
     Copies parameters from `source` to `target` using:
         target_param = tau * source_param + (1 - tau) * target_param
+
     Args:
         target (torch.nn.Module): Target network to update.
         source (torch.nn.Module): Source network (e.g., online network).
         tau (float): Mixing factor (0 < tau <= 1). tau=1 means hard update.
+
+    Example:
+        # For DQN target updates:
+        soft_update(target_net, source_net, tau=0.005)
+        # Hard update:
+        soft_update(target_net, source_net, tau=1.0)
     """
     for target_param, source_param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
