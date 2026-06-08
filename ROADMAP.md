@@ -8,7 +8,7 @@
 
 ## Phase 2: value-based
 - [x] DQN on CartPole
-- [ ] Double DQN
+- [x] Double DQN
 - [ ] Dueling DQN
 - [ ] Prioritized replay
 
