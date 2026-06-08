@@ -7,6 +7,7 @@ Rationale:
 - running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
 - moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
 - soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
+- flatten_dict: Flattens nested dictionaries for logging (e.g., metrics) or serialization. Converts {a: {b: 1}} to {'a.b': 1}.
 
 Examples:
     set_seed(42)
@@ -17,6 +18,8 @@ Examples:
     # tau=1.0 gives a hard update (copy params exactly)
     # Global seeding (including Gym):
     seed_everything(42, env=env)
+    # Flatten metrics dict:
+    flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})  # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -138,3 +141,30 @@ def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) ->
     """
     for target_param, source_param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
+
+
+def flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
+    """
+    Flatten a nested dictionary. 
+    For logging and serialization, converts {'a': {'b': 1}, 'c': 2} to {'a.b': 1, 'c': 2}.
+
+    Args:
+        d (dict): Dictionary to flatten.
+        parent_key (str): Prefix for keys (used internally).
+        sep (str): Separator for key levels.
+
+    Returns:
+        dict: Flattened dictionary.
+
+    Example:
+        flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
+        # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
+    """
+    items = {}
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
