@@ -3,6 +3,7 @@ Basic utilities for RL experiments: seeding, running/moving averages, and Polyak
 
 Rationale:
 - set_seed: Reproducibility is critical in RL due to noisy training and variance. Sets seeds for Python, NumPy, and PyTorch.
+- seed_everything: Sets seeds for Python, NumPy, PyTorch, AND Gymnasium environments (if provided). Ensures global reproducibility for full RL setup.
 - running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
 - moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
 - soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
@@ -14,6 +15,8 @@ Examples:
     # Polyak averaging for target networks:
     soft_update(target_net, source_net, tau=0.005)
     # tau=1.0 gives a hard update (copy params exactly)
+    # Global seeding (including Gym):
+    seed_everything(42, env=env)
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -35,6 +38,36 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+
+def seed_everything(seed: int, env=None) -> None:
+    """
+    Set random seeds for Python, NumPy, PyTorch, AND Gymnasium env (if provided).
+    Ensures global reproducibility for RL experiments.
+
+    Args:
+        seed (int): Seed value to set.
+        env (optional): Gymnasium environment. If provided, env is seeded via env.reset(seed=seed).
+
+    Example:
+        seed_everything(42, env=my_env)
+    """
+    set_seed(seed)
+    try:
+        import os
+        os.environ["PYTHONHASHSEED"] = str(seed)
+    except Exception:
+        pass
+    if env is not None:
+        # Gymnasium: seed via reset(seed=seed)
+        try:
+            env.reset(seed=seed)
+        except Exception:
+            # Older gym envs may use env.seed(seed)
+            try:
+                env.seed(seed)
+            except Exception:
+                pass
 
 
 def running_average(values):
