@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import json
 
 class EpsilonGreedyExplorer:
     """
@@ -85,3 +86,35 @@ class EpsilonGreedyExplorer:
         steps = np.arange(max_steps)
         decay_ratio = np.minimum(steps / self.epsilon_decay, 1.0)
         return self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
+
+    def save(self, path: str) -> None:
+        """
+        Save explorer state to a JSON file for reproducibility.
+        Stores epsilon parameters and steps_done.
+
+        Args:
+            path (str): File path to save state.
+        """
+        state = {
+            "epsilon_start": self.epsilon_start,
+            "epsilon_final": self.epsilon_final,
+            "epsilon_decay": self.epsilon_decay,
+            "steps_done": self.steps_done
+        }
+        with open(path, "w") as f:
+            json.dump(state, f)
+
+    def load(self, path: str) -> None:
+        """
+        Load explorer state from a JSON file.
+        Overwrites epsilon parameters and steps_done.
+
+        Args:
+            path (str): File path to load state from.
+        """
+        with open(path, "r") as f:
+            state = json.load(f)
+        self.epsilon_start = state["epsilon_start"]
+        self.epsilon_final = state["epsilon_final"]
+        self.epsilon_decay = state["epsilon_decay"]
+        self.steps_done = state["steps_done"]
