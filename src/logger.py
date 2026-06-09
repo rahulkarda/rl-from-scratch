@@ -55,7 +55,7 @@ class Logger:
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([step, name, value])
+            writer.writerow([step, name, self._format_value(value)])
 
     def log_scalars(self, scalars: Dict[str, Any], step: int):
         """
@@ -68,7 +68,7 @@ class Logger:
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
             for name, value in scalars.items():
-                writer.writerow([step, name, value])
+                writer.writerow([step, name, self._format_value(value)])
 
     def log_episode_return(self, episode_return: float, episode: int):
         """
@@ -80,4 +80,12 @@ class Logger:
         """
         with open(self.returns_path, "a", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([episode, episode_return])
+            writer.writerow([episode, self._format_value(episode_return)])
+
+    def _format_value(self, value: Any) -> Any:
+        """
+        Format float values for CSV output: round to 6 decimals for consistent logs.
+        """
+        if isinstance(value, float):
+            return f"{value:.6f}"
+        return value
