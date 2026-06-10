@@ -20,6 +20,9 @@ Examples:
     seed_everything(42, env=env)
     # Flatten metrics dict:
     flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})  # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
+    # Real-world: flatten_dict before logger.log_scalars for CSV:
+    metrics = {'loss': 0.1, 'stats': {'mean': 1, 'std': 2}}
+    logger.log_scalars(flatten_dict(metrics), step=100)
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -145,8 +148,9 @@ def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) ->
 
 def flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
     """
-    Flatten a nested dictionary. 
+    Flatten a nested dictionary.
     For logging and serialization, converts {'a': {'b': 1}, 'c': 2} to {'a.b': 1, 'c': 2}.
+    Typical use: flatten RL metrics dict before logging to CSV or tensorboard.
 
     Args:
         d (dict): Dictionary to flatten.
@@ -159,6 +163,7 @@ def flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
     Example:
         flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
         # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
+        # logger.log_scalars(flatten_dict(metrics), step=100)
     """
     items = {}
     for k, v in d.items():
