@@ -1,4 +1,4 @@
-from utils import moving_average, running_average, soft_update
+from utils import moving_average, running_average, soft_update, flatten_dict
 import numpy as np
 import torch
 
@@ -48,10 +48,40 @@ def test_soft_update():
         assert torch.allclose(p.data, torch.full_like(p.data, 1.0))
 
 
+def test_flatten_dict():
+    nested = {
+        'loss': 0.1,
+        'stats': {
+            'mean': 1,
+            'std': 2,
+            'hist': {
+                'min': 0,
+                'max': 5
+            }
+        },
+        'lr': 0.001
+    }
+    flat = flatten_dict(nested)
+    expected = {
+        'loss': 0.1,
+        'stats.mean': 1,
+        'stats.std': 2,
+        'stats.hist.min': 0,
+        'stats.hist.max': 5,
+        'lr': 0.001
+    }
+    assert flat == expected
+    # Test empty dict
+    assert flatten_dict({}) == {}
+    # Test single-layer dict
+    assert flatten_dict({'a': 1, 'b': 2}) == {'a': 1, 'b': 2}
+
+
 def run():
     test_running_average()
     test_moving_average()
     test_soft_update()
+    test_flatten_dict()
     print("Utils basic test passed.")
 
 if __name__ == "__main__":
