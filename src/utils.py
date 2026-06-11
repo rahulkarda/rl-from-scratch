@@ -139,23 +139,21 @@ def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) ->
     Example:
         # For DQN target updates:
         soft_update(target_net, source_net, tau=0.005)
-        # Hard update:
-        soft_update(target_net, source_net, tau=1.0)
+        # tau=1.0 gives a hard update (copy params exactly)
     """
     for target_param, source_param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
 
 
-def flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
+def flatten_dict(d, parent_key: str = '', sep: str = '.'):
     """
-    Flatten a nested dictionary.
-    For logging and serialization, converts {'a': {'b': 1}, 'c': 2} to {'a.b': 1, 'c': 2}.
-    Typical use: flatten RL metrics dict before logging to CSV or tensorboard.
+    Recursively flatten a nested dictionary into a single-layer dict.
+    Keys are joined with `sep` (default '.') for use in logging/serialization.
 
     Args:
-        d (dict): Dictionary to flatten.
+        d (dict): Nested dictionary to flatten.
         parent_key (str): Prefix for keys (used internally).
-        sep (str): Separator for key levels.
+        sep (str): Separator between keys.
 
     Returns:
         dict: Flattened dictionary.
@@ -168,6 +166,7 @@ def flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
     items = {}
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
+        # Fix: handle non-dict mapping values gracefully
         if isinstance(v, dict):
             items.update(flatten_dict(v, new_key, sep=sep))
         else:
