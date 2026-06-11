@@ -50,11 +50,6 @@ class Logger:
     def log_scalar(self, name: str, value: float, step: int):
         """
         Log a single scalar metric (e.g., loss, epsilon) for a given step.
-
-        Args:
-            name (str): Metric name.
-            value (float): Metric value.
-            step (int): Step number.
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
@@ -63,10 +58,6 @@ class Logger:
     def log_scalars(self, scalars: Dict[str, Any], step: int):
         """
         Log multiple scalar metrics for a given step.
-
-        Args:
-            scalars (dict): Mapping from metric names to values (e.g. {"loss": 0.32, "epsilon": 0.1})
-            step (int): Step number.
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
@@ -76,10 +67,6 @@ class Logger:
     def log_episode_return(self, episode_return: float, episode: int):
         """
         Log episode return (sum of rewards) for a given episode.
-
-        Args:
-            episode_return (float): Total reward for episode.
-            episode (int): Episode index.
         """
         with open(self.returns_path, "a", newline='') as f:
             writer = csv.writer(f)
