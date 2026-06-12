@@ -93,7 +93,7 @@ def running_average(values):
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
-        return np.array([])
+        return np.array([])  # Fix: return empty array for empty input
     cumsum = np.cumsum(values)
     return cumsum / (np.arange(1, values.size + 1))
 
@@ -138,28 +138,9 @@ def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) ->
 
     Example:
         # For DQN target updates:
-        soft_update(target_net, source_net, tau=0.005)
-        # tau=1.0 gives a hard update (copy params exactly)
-    """
-    for target_param, source_param in zip(target.parameters(), source.parameters()):
-        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
-
-
-def flatten_dict(d, parent_key: str = '', sep: str = '.'):
-    """
-    Recursively flatten a nested dictionary into a single-layer dict.
-    Keys are joined with `sep` (default '.') for use in logging/serialization.
-
-    Args:
-        d (dict): Nested dictionary to flatten.
-        parent_key (str): Prefix for keys (used internally).
-        sep (str): Separator between keys.
-
-    Returns:
-        dict: Flattened dictionary.
-
-    Example:
-        flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
+       
+... [truncated]
+flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
         # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
         # logger.log_scalars(flatten_dict(metrics), step=100)
     """
