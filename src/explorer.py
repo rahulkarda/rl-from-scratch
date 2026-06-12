@@ -4,10 +4,15 @@ import json
 
 class EpsilonGreedyExplorer:
     """
-    Epsilon-greedy action selection with decay schedules.
+    Epsilon-greedy action selection with linear decay schedule.
 
-    Rationale:
-        Used in value-based RL for balancing exploration/exploitation. Linear decay. Greedy/random modes. Batch support.
+    Used in value-based RL for balancing exploration and exploitation.
+    Supports single and batch action selection, with reproducible state saving/loading.
+
+    Args:
+        epsilon_start (float): Initial epsilon (exploration probability).
+        epsilon_final (float): Final epsilon after decay.
+        epsilon_decay (int): Number of steps over which to linearly decay epsilon.
     """
     def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.1, epsilon_decay: int = 10000):
         self.epsilon_start = epsilon_start
