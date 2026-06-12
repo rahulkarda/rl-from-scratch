@@ -45,7 +45,8 @@ def main():
     target_dqn.load_state_dict(dqn.state_dict())
     optimizer = optim.Adam(dqn.parameters(), lr=1e-3)
     buffer = ReplayBuffer(capacity=10000)
-    explorer = EpsilonGreedyExplorer(epsilon_start=1.0, epsilon_final=0.01, epsilon_decay=10000)
+    # Tweak: slower epsilon decay for CartPole (was 10_000)
+    explorer = EpsilonGreedyExplorer(epsilon_start=1.0, epsilon_final=0.01, epsilon_decay=50000)
     logger = Logger(log_dir="logs/dqn_cartpole")
 
     num_episodes = 20  # tiny for initial loop test
