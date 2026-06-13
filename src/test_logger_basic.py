@@ -25,7 +25,11 @@ def test_logger():
     # Cleanup
     os.remove(scalar_path)
     os.remove(returns_path)
-    os.rmdir(log_dir)
+    # Only remove log_dir if empty
+    try:
+        os.rmdir(log_dir)
+    except OSError:
+        pass
 
 def run():
     test_logger()
