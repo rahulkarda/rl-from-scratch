@@ -1,4 +1,4 @@
-from utils import moving_average, running_average, soft_update, flatten_dict
+from utils import moving_average, running_average, soft_update, flatten_dict, moving_std
 import numpy as np
 import torch
 
@@ -21,6 +21,20 @@ def test_moving_average():
     # window_size == 1 returns original
     ma1 = moving_average(vals, window_size=1)
     assert np.allclose(ma1, np.array(vals))
+
+
+def test_moving_std():
+    vals = [1, 2, 3, 4, 5]
+    ms = moving_std(vals, window_size=3)
+    # Each window: [1,2,3], [2,3,4], [3,4,5]. Std of [1,2,3] is ~0.8165
+    expected = np.array([np.std([1,2,3]), np.std([2,3,4]), np.std([3,4,5])])
+    assert np.allclose(ms, expected)
+    # window_size > len(vals)
+    empty = moving_std(vals, window_size=10)
+    assert empty.size == 0
+    # window_size == 1: std of singletons is 0
+    ms1 = moving_std(vals, window_size=1)
+    assert np.allclose(ms1, np.zeros(len(vals)))
 
 
 def test_soft_update():
@@ -80,6 +94,7 @@ def test_flatten_dict():
 def run():
     test_running_average()
     test_moving_average()
+    test_moving_std()
     test_soft_update()
     test_flatten_dict()
     print("Utils basic test passed.")

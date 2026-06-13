@@ -1,11 +1,12 @@
 """
-Basic utilities for RL experiments: seeding, running/moving averages, and Polyak averaging.
+Basic utilities for RL experiments: seeding, running/moving averages, moving std, and Polyak averaging.
 
 Rationale:
 - set_seed: Reproducibility is critical in RL due to noisy training and variance. Sets seeds for Python, NumPy, and PyTorch.
 - seed_everything: Sets seeds for Python, NumPy, PyTorch, AND Gymnasium environments (if provided). Ensures global reproducibility for full RL setup.
 - running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
 - moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
+- moving_std: Computes standard deviation over a fixed window. Useful for plotting reward curve uncertainty bands (shaded region).
 - soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
 - flatten_dict: Flattens nested dictionaries for logging (e.g., metrics) or serialization. Converts {a: {b: 1}} to {'a.b': 1}.
 
@@ -13,6 +14,7 @@ Examples:
     set_seed(42)
     ra = running_average([1, 2, 3, 4])  # array([1., 1.5, 2., 2.5])
     ma = moving_average([1, 2, 3, 4, 5], window_size=3)  # array([2., 3., 4.])
+    ms = moving_std([1, 2, 3, 4, 5], window_size=3)  # array([0.8165, 0.8165, 0.8165])
     # Polyak averaging for target networks:
     soft_update(target_net, source_net, tau=0.005)
     # tau=1.0 gives a hard update (copy params exactly)
@@ -125,6 +127,36 @@ def moving_average(values, window_size: int):
     return cumsum[window_size - 1:] / window_size
 
 
+def moving_std(values, window_size: int):
+    """
+    Compute moving (sliding window) standard deviation over a list or array.
+
+    Returns a sequence of stds where each is computed over a sliding window of length `window_size`.
+
+    Args:
+        values: Sequence of numbers (list, np.ndarray).
+        window_size: Size of window (int).
+
+    Returns:
+        np.ndarray of moving stds (len = len(values) - window_size + 1)
+
+    Example:
+        moving_std([1, 2, 3, 4, 5], window_size=3)
+        # returns array([0.8165, 0.8165, 0.8165])
+    """
+    values = np.array(values, dtype=float)
+    if window_size < 1:
+        raise ValueError("window_size must be >= 1")
+    if values.size < window_size:
+        return np.array([])
+    # Use stride tricks for efficiency (but fallback to loop for clarity)
+    result = []
+    for i in range(values.size - window_size + 1):
+        window = values[i:i+window_size]
+        result.append(np.std(window))
+    return np.array(result)
+
+
 def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) -> None:
     """
     Polyak averaging for target network updates.
@@ -138,9 +170,30 @@ def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) ->
 
     Example:
         # For DQN target updates:
-       
-... [truncated]
-flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
+        # soft_update(target_net, source_net, tau=0.005)
+    """
+    with torch.no_grad():
+        for t_param, s_param in zip(target.parameters(), source.parameters()):
+            t_param.data.mul_(1.0 - tau)
+            t_param.data.add_(tau * s_param.data)
+
+
+def flatten_dict(d, parent_key="", sep="."):
+    """
+    Flatten nested dictionaries for logging or serialization.
+    Converts {a: {b: 1}} to {'a.b': 1}.
+    Handles non-dict mapping values gracefully (does not recurse).
+
+    Args:
+        d (dict): Nested dictionary to flatten.
+        parent_key (str): Prefix for keys (used during recursion).
+        sep (str): Separator between nested keys.
+
+    Returns:
+        dict: Flattened dictionary.
+
+    Example:
+        flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
         # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
         # logger.log_scalars(flatten_dict(metrics), step=100)
     """
