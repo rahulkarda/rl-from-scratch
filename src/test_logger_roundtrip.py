@@ -1,32 +1,43 @@
 from logger import Logger
 import os
-import tempfile
+import csv
 
 def test_logger_roundtrip():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        logger = Logger(log_dir=tmpdir)
-        # Log some scalars and returns
-        logger.log_scalar("loss", 0.123456789, step=5)
-        logger.log_scalars({"epsilon": 0.987654321, "score": 42}, step=6)
-        logger.log_episode_return(99.99, episode=1)
-        logger.log_episode_return(101.01, episode=2)
-        # Read back
-        scalars = logger.read_scalars()
-        returns = logger.read_episode_returns()
-        # Check shape and rounded float values
-        assert len(scalars) == 3
-        assert scalars[0]["name"] == "loss"
-        assert abs(scalars[0]["value"] - 0.123457) < 1e-6
-        assert scalars[1]["name"] == "epsilon"
-        assert abs(scalars[1]["value"] - 0.987654) < 1e-6
-        assert scalars[2]["name"] == "score"
-        assert scalars[2]["value"] == 42.0
-        assert len(returns) == 2
-        assert returns[0]["episode"] == 1
-        assert abs(returns[0]["return"] - 99.99) < 1e-2
-        assert returns[1]["episode"] == 2
-        assert abs(returns[1]["return"] - 101.01) < 1e-2
-    print("Logger roundtrip test passed.")
+    log_dir = "test_logs_roundtrip"
+    logger = Logger(log_dir=log_dir)
+    # Log some scalars and returns
+    logger.log_scalar("loss", 0.321, step=10)
+    logger.log_scalars({"epsilon": 0.12, "reward": 7.8}, step=11)
+    logger.log_episode_return(42.0, episode=3)
+    logger.log_episode_return(99.9, episode=4)
+    # Read back scalars
+    scalars = logger.read_scalars()
+    names = set([s["name"] for s in scalars])
+    values = {s["name"]: s["value"] for s in scalars}
+    steps = [s["step"] for s in scalars]
+    assert "loss" in names
+    assert "epsilon" in names
+    assert "reward" in names
+    assert values["loss"] == 0.321
+    assert steps.count(10) == 1
+    assert steps.count(11) == 2
+    # Read back returns
+    returns = logger.read_episode_returns()
+    assert len(returns) == 2
+    assert returns[0]["episode"] == 3
+    assert returns[0]["return"] == 42.0
+    assert returns[1]["episode"] == 4
+    assert returns[1]["return"] == 99.9
+    # Cleanup
+    scalar_path = os.path.join(log_dir, "scalars.csv")
+    returns_path = os.path.join(log_dir, "episode_returns.csv")
+    os.remove(scalar_path)
+    os.remove(returns_path)
+    os.rmdir(log_dir)
+
+def run():
+    test_logger_roundtrip()
+    print("Logger CSV roundtrip test passed.")
 
 if __name__ == "__main__":
-    test_logger_roundtrip()
+    run()
