@@ -21,10 +21,13 @@ class EpsilonGreedyExplorer:
         self.steps_done = 0
 
     def epsilon(self) -> float:
-        """Current epsilon decayed linearly."""
+        """
+        Current epsilon decayed linearly as steps increase.
+        """
         decay_ratio = min(self.steps_done / self.epsilon_decay, 1.0)
         return float(self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio))
 
+    # --- Action selectors ---
     def select_action(self, q_values: np.ndarray | list) -> int:
         """
         Epsilon-greedy action selection.
@@ -58,6 +61,7 @@ class EpsilonGreedyExplorer:
     def sample_action(self, batch_q_values: np.ndarray | list) -> list:
         """
         Batch epsilon-greedy action selection for array shape (batch_size, num_actions).
+        Returns: list[int] of actions.
         """
         eps = self.epsilon()
         batch_q_values = np.array(batch_q_values)
@@ -70,6 +74,7 @@ class EpsilonGreedyExplorer:
                 actions.append(int(np.argmax(batch_q_values[i])))
         return actions
 
+    # --- Step control ---
     def step(self) -> None:
         """
         Increment step counter for epsilon decay.
@@ -82,6 +87,7 @@ class EpsilonGreedyExplorer:
         """
         self.steps_done = 0
 
+    # --- Schedule utilities ---
     def get_epsilon_schedule(self, max_steps: int = None) -> np.ndarray:
         """
         Array of epsilon values over steps (for plotting).
@@ -92,13 +98,11 @@ class EpsilonGreedyExplorer:
         decay_ratio = np.minimum(steps / self.epsilon_decay, 1.0)
         return self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
 
+    # --- Save/load ---
     def save(self, path: str) -> None:
         """
         Save explorer state to a JSON file for reproducibility.
         Stores epsilon parameters and steps_done.
-
-        Args:
-            path (str): File path to save state.
         """
         state = {
             "epsilon_start": self.epsilon_start,
@@ -113,9 +117,6 @@ class EpsilonGreedyExplorer:
         """
         Load explorer state from a JSON file.
         Overwrites epsilon parameters and steps_done.
-
-        Args:
-            path (str): File path to load state from.
         """
         with open(path, "r") as f:
             state = json.load(f)
