@@ -74,10 +74,22 @@ class Logger:
 
     def _format_value(self, value: Any) -> Any:
         """
-        Format float values for CSV output: round to 6 decimals for consistent logs.
+        Format float values for CSV output: always round to 6 decimals for consistent logs.
         """
+        # Ensure every float is formatted as a string with 6 decimals (not scientific notation)
         if isinstance(value, float):
             return f"{value:.6f}"
+        elif isinstance(value, int):
+            return value
+        elif isinstance(value, str):
+            return value
+        # Try to convert numpy float types
+        try:
+            import numpy as np
+            if isinstance(value, np.floating):
+                return f"{float(value):.6f}"
+        except Exception:
+            pass
         return value
 
     def read_scalars(self) -> List[Dict[str, Any]]:
