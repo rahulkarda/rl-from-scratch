@@ -112,3 +112,9 @@ class ReplayBuffer:
         for item in items:
             t = Transition(**item)
             self.buffer.append(t)
+
+    def clear(self) -> None:
+        """
+        Remove all transitions from the buffer, emptying it.
+        """
+        self.buffer.clear()
