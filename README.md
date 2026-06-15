@@ -19,3 +19,44 @@ Just starting. See [ROADMAP.md](ROADMAP.md).
 ```bash
 pip install -r requirements.txt
 ```
+
+## Usage examples
+
+- **ReplayBuffer**:
+  ```python
+  from replay import ReplayBuffer, Transition
+  buf = ReplayBuffer(capacity=10000)
+  buf.push(Transition(state, action, reward, next_state, done))
+  batch = buf.sample(batch_size=32)
+  buf.save('buffer.pkl')
+  buf.load('buffer.pkl')
+  ```
+
+- **EpsilonGreedyExplorer**:
+  ```python
+  from explorer import EpsilonGreedyExplorer
+  explorer = EpsilonGreedyExplorer(epsilon_start=1.0, epsilon_final=0.01, epsilon_decay=50000)
+  action = explorer.select_action(q_values)
+  explorer.step()
+  explorer.save('explorer.json')
+  explorer.load('explorer.json')
+  ```
+
+- **Logger**:
+  ```python
+  from logger import Logger
+  logger = Logger(log_dir="logs/test")
+  logger.log_scalar("loss", 0.123, step=10)
+  logger.log_episode_return(42.0, episode=3)
+  logger.log_scalars({"epsilon": 0.13, "reward": 17.5}, step=20)
+  scalars = logger.read_scalars()
+  returns = logger.read_episode_returns()
+  ```
+
+- **Seeding**:
+  ```python
+  from utils import set_seed, seed_everything
+  set_seed(42)
+  # Or with Gym env:
+  seed_everything(42, env=env)
+  ```
