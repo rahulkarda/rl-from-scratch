@@ -32,12 +32,10 @@ import random
 import numpy as np
 import torch
 
+# --- Seeding utilities ---
 def set_seed(seed: int) -> None:
     """
     Set random seed for reproducibility across Python, NumPy, and PyTorch.
-
-    Args:
-        seed (int): Seed value to set.
     """
     random.seed(seed)
     np.random.seed(seed)
@@ -52,13 +50,6 @@ def seed_everything(seed: int, env=None) -> None:
     """
     Set random seeds for Python, NumPy, PyTorch, AND Gymnasium env (if provided).
     Ensures global reproducibility for RL experiments.
-
-    Args:
-        seed (int): Seed value to set.
-        env (optional): Gymnasium environment. If provided, env is seeded via env.reset(seed=seed).
-
-    Example:
-        seed_everything(42, env=my_env)
     """
     set_seed(seed)
     try:
@@ -77,21 +68,11 @@ def seed_everything(seed: int, env=None) -> None:
             except Exception:
                 pass
 
-
+# --- Moving/running statistics ---
 def running_average(values):
     """
     Compute running (cumulative) average for a sequence.
     Each value is the average of all previous values up to that index.
-
-    Args:
-        values: Sequence of numbers (list, np.ndarray).
-
-    Returns:
-        np.ndarray of running averages (same length as values).
-
-    Example:
-        running_average([1, 2, 3, 4])
-        # returns array([1., 1.5, 2., 2.5])
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
@@ -103,19 +84,7 @@ def running_average(values):
 def moving_average(values, window_size: int):
     """
     Compute simple moving average over a list or array.
-
     Returns a sequence of averages where each average is computed over a sliding window of length `window_size`.
-
-    Args:
-        values: Sequence of numbers (list, np.ndarray).
-        window_size: Size of window (int).
-
-    Returns:
-        np.ndarray of moving averages (len = len(values) - window_size + 1)
-
-    Example:
-        moving_average([1, 2, 3, 4, 5], window_size=3)
-        # returns array([2., 3., 4.])
     """
     values = np.array(values, dtype=float)
     if window_size < 1:
@@ -130,72 +99,36 @@ def moving_average(values, window_size: int):
 def moving_std(values, window_size: int):
     """
     Compute moving (sliding window) standard deviation over a list or array.
-
     Returns a sequence of stds where each is computed over a sliding window of length `window_size`.
-
-    Args:
-        values: Sequence of numbers (list, np.ndarray).
-        window_size: Size of window (int).
-
-    Returns:
-        np.ndarray of moving stds (len = len(values) - window_size + 1)
-
-    Example:
-        moving_std([1, 2, 3, 4, 5], window_size=3)
-        # returns array([0.8165, 0.8165, 0.8165])
     """
     values = np.array(values, dtype=float)
     if window_size < 1:
         raise ValueError("window_size must be >= 1")
     if values.size < window_size:
         return np.array([])
-    # Use stride tricks for efficiency (but fallback to loop for clarity)
-    result = []
-    for i in range(values.size - window_size + 1):
-        window = values[i:i+window_size]
-        result.append(np.std(window))
-    return np.array(result)
+    out = np.empty(values.size - window_size + 1)
+    for i in range(out.size):
+        out[i] = values[i:i+window_size].std()
+    return out
 
-
-def soft_update(target: torch.nn.Module, source: torch.nn.Module, tau: float) -> None:
+# --- Polyak averaging ---
+def soft_update(target_net, source_net, tau: float):
     """
-    Polyak averaging for target network updates.
-    Copies parameters from `source` to `target` using:
-        target_param = tau * source_param + (1 - tau) * target_param
-
-    Args:
-        target (torch.nn.Module): Target network to update.
-        source (torch.nn.Module): Source network (e.g., online network).
-        tau (float): Mixing factor (0 < tau <= 1). tau=1 means hard update.
-
-    Example:
-        # For DQN target updates:
-        # soft_update(target_net, source_net, tau=0.005)
+    Polyak averaging (soft update) for target network parameters.
+    Each parameter in target_net is updated:
+        target = tau * source + (1 - tau) * target
+    tau=1.0 gives a hard update (copy).
     """
-    with torch.no_grad():
-        for t_param, s_param in zip(target.parameters(), source.parameters()):
-            t_param.data.mul_(1.0 - tau)
-            t_param.data.add_(tau * s_param.data)
+    for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
+        target_param.data.copy_(
+            tau * source_param.data + (1.0 - tau) * target_param.data
+        )
 
-
-def flatten_dict(d, parent_key="", sep="."):
+# --- Flatten dictionary utility ---
+def flatten_dict(d, parent_key='', sep='.'):
     """
     Flatten nested dictionaries for logging or serialization.
     Converts {a: {b: 1}} to {'a.b': 1}.
-    Handles non-dict mapping values gracefully (does not recurse).
-
-    Args:
-        d (dict): Nested dictionary to flatten.
-        parent_key (str): Prefix for keys (used during recursion).
-        sep (str): Separator between nested keys.
-
-    Returns:
-        dict: Flattened dictionary.
-
-    Example:
-        flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
-        # {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
-        # logger.log_scalars(flatten_dict(metrics), step=100)
     """
     items = {}
     for k, v in d.items():
