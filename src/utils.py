@@ -124,23 +124,27 @@ def soft_update(target_net, source_net, tau: float):
             tau * source_param.data + (1.0 - tau) * target_param.data
         )
 
-# --- Flatten dictionary utility ---
-def flatten_dict(d, parent_key='', sep='.'):
+# --- Dict flattening ---
+def flatten_dict(d, parent_key='', sep='.'): 
     """
-    Flatten nested dictionaries for logging or serialization.
-    Converts {a: {b: 1}} to {'a.b': 1}.
+    Flatten nested dictionaries. E.g. {'a': {'b': 1}} -> {'a.b': 1}
+    Args:
+        d (dict): Input dict.
+        parent_key (str): Prefix for keys (used recursively).
+        sep (str): Separator to use.
+    Returns:
+        dict: Flattened dict.
     """
-    items = {}
+    items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
-        # Fix: handle non-dict mapping values gracefully
         if isinstance(v, dict):
-            items.update(flatten_dict(v, new_key, sep=sep))
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
-            items[new_key] = v
-    return items
+            items.append((new_key, v))
+    return dict(items)
 
-# --- Logger CSV helpers ---
+# --- Utility: compute total steps from scalars log ---
 def total_steps_from_scalars(scalars):
     """
     Compute total steps from a list of scalars log entries (as read from logger.read_scalars()).
