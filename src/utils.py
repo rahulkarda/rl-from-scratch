@@ -139,3 +139,19 @@ def flatten_dict(d, parent_key='', sep='.'):
         else:
             items[new_key] = v
     return items
+
+# --- Logger CSV helpers ---
+def total_steps_from_scalars(scalars):
+    """
+    Compute total steps from a list of scalars log entries (as read from logger.read_scalars()).
+    Returns the maximum step value, or 0 if empty.
+    Useful for restoring training progress or plotting.
+
+    Args:
+        scalars (list of dict): Each dict must have 'step' (int).
+    Returns:
+        int: Maximum step value in scalars, or 0 if empty.
+    """
+    if not scalars:
+        return 0
+    return max(entry.get('step', 0) for entry in scalars)
