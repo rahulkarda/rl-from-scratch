@@ -79,6 +79,24 @@ class ReplayBuffer:
             raise ValueError(f"Cannot sample batch_size={batch_size} from buffer with {len(self.buffer)} transitions.")
         return random.sample(self.buffer, batch_size)
 
+    def sample_recent(self, batch_size: int) -> List[Transition]:
+        """
+        Sample the most recent N transitions from the buffer (not random).
+        Useful for debugging, visualization, or on-policy algorithms.
+
+        Args:
+            batch_size (int): Number of transitions to return.
+        Returns:
+            List[Transition]: List of the latest transitions (ordered: oldest to newest).
+
+        Raises:
+            ValueError: If batch_size > number of transitions in buffer.
+        """
+        if batch_size > len(self.buffer):
+            raise ValueError(f"Cannot sample_recent batch_size={batch_size} from buffer with {len(self.buffer)} transitions.")
+        # Slice from right (most recent), but return in order (oldest to newest)
+        return list(self.buffer)[-batch_size:]
+
     def __len__(self) -> int:
         """
         Returns the current number of transitions stored.
