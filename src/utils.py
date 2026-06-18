@@ -121,30 +121,35 @@ def soft_update(target_net, source_net, tau: float):
     """
     for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
         target_param.data.copy_(
-            tau * source_param.data + (1.0 - tau) * target_param.data
+            tau * source_param.data + (1 - tau) * target_param.data
         )
 
-# --- Dict flattening ---
-def flatten_dict(d, parent_key='', sep='.'): 
+# --- Dict flattening for logging ---
+def flatten_dict(d, parent_key='', sep='.'):
     """
-    Flatten nested dictionaries. E.g. {'a': {'b': 1}} -> {'a.b': 1}
-    Args:
-        d (dict): Input dict.
-        parent_key (str): Prefix for keys (used recursively).
-        sep (str): Separator to use.
-    Returns:
-        dict: Flattened dict.
-    """
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
+    Recursively flatten a nested dictionary.
+    Example:
+        flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
+        => {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
 
-# --- Utility: compute total steps from scalars log ---
+    Args:
+        d (dict): Input dict to flatten.
+        parent_key (str): Prefix for nested keys (internal).
+        sep (str): Separator between key levels.
+
+    Returns:
+        dict: Flattened dictionary.
+    """
+    items = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+# --- Step counting utility ---
 def total_steps_from_scalars(scalars):
     """
     Compute total steps from a list of scalars log entries (as read from logger.read_scalars()).
