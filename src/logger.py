@@ -5,9 +5,15 @@ import numpy as np
 
 class Logger:
     """
-    Logger for writing scalar metrics and episode returns to disk (CSV).
+    Logger for writing scalar metrics, episode returns, and histograms to disk (CSV).
 
-    Usage:
+    Provides:
+      - Scalar metric logging: log_scalar, log_scalars
+      - Episode return logging: log_episode_return
+      - Histogram logging: log_histogram
+      - Reading logged data: read_scalars, read_episode_returns, read_histograms
+
+    Example usage:
         logger = Logger(log_dir="logs/test_run")
         logger.log_scalar("loss", 0.32, step=10)
         logger.log_episode_return(42.0, episode=3)
@@ -34,6 +40,7 @@ class Logger:
         self._init_returns_file()
         self._init_histogram_file()
 
+    # --- CSV file initializers ---
     def _init_scalar_file(self):
         """
         Create scalars.csv file with header if it does not exist.
@@ -62,9 +69,15 @@ class Logger:
                 writer = csv.writer(f)
                 writer.writerow(["step", "name", "values"])
 
+    # --- Scalar logging ---
     def log_scalar(self, name: str, value: float, step: int):
         """
         Log a single scalar metric (e.g., loss, epsilon) for a given step.
+
+        Args:
+            name (str): Metric name
+            value (float): Metric value
+            step (int): Step index
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
@@ -73,48 +86,57 @@ class Logger:
     def log_scalars(self, scalars: Dict[str, Any], step: int):
         """
         Log multiple scalar metrics for a given step.
+
+        Args:
+            scalars (dict): Mapping from metric name to value
+            step (int): Step index
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
             for name, value in scalars.items():
                 writer.writerow([step, name, self._format_value(value)])
 
+    # --- Episode return logging ---
     def log_episode_return(self, episode_return: float, episode: int):
         """
         Log episode return (sum of rewards) for a given episode.
+
+        Args:
+            episode_return (float): Return value
+            episode (int): Episode index
         """
         with open(self.returns_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([episode, self._format_value(episode_return)])
 
+    # --- Histogram logging ---
     def log_histogram(self, name: str, values: Any, step: int):
         """
         Log a histogram/distribution for a given step.
         Values are recorded as a comma-separated string.
+
         Args:
             name (str): Metric name
             values (array-like): Distribution values (e.g. weights, Q-values)
             step (int): Step index
         """
         arr = np.array(values).flatten()
-        # Format each value as float string
         str_values = ','.join(f"{float(v):.6f}" for v in arr)
         with open(self.histogram_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([step, name, str_values])
 
+    # --- Value formatting ---
     def _format_value(self, value: Any) -> Any:
         """
         Format float values for CSV output: always round to 6 decimals for consistent logs.
         """
-        # Ensure every float is formatted as a string with 6 decimals (not scientific notation)
         if isinstance(value, float):
             return f"{value:.6f}"
         elif isinstance(value, int):
             return value
         elif isinstance(value, str):
             return value
-        # Try to convert numpy float types
         try:
             import numpy as np
             if isinstance(value, np.floating):
@@ -123,6 +145,7 @@ class Logger:
             pass
         return value
 
+    # --- Reading logged data ---
     def read_scalars(self) -> List[Dict[str, Any]]:
         """
         Read logged scalar metrics from scalars.csv.
@@ -145,7 +168,7 @@ class Logger:
 
     def read_episode_returns(self) -> List[Dict[str, Any]]:
         """
-        Read logged episode returns from episode_returns.csv.
+        Read episode returns from episode_returns.csv.
         Returns a list of dicts: [{"episode": int, "return": float}, ...]
         """
         returns = []
@@ -164,7 +187,7 @@ class Logger:
 
     def read_histograms(self) -> List[Dict[str, Any]]:
         """
-        Read logged histograms/distributions from histograms.csv.
+        Read logged histograms from histograms.csv.
         Returns a list of dicts: [{"step": int, "name": str, "values": np.ndarray}, ...]
         """
         histos = []
