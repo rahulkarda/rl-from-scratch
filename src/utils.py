@@ -25,6 +25,8 @@ Examples:
     # Real-world: flatten_dict before logger.log_scalars for CSV:
     metrics = {'loss': 0.1, 'stats': {'mean': 1, 'std': 2}}
     logger.log_scalars(flatten_dict(metrics), step=100)
+    # Compute reward stats from episode returns log:
+    stats = compute_reward_stats([10, 20, 15])  # {'mean': 15.0, 'std': 5.0, 'min': 10.0, 'max': 20.0}
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -121,35 +123,25 @@ def soft_update(target_net, source_net, tau: float):
     """
     for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
         target_param.data.copy_(
-            tau * source_param.data + (1 - tau) * target_param.data
+            tau * source_param.data + (1.0 - tau) * target_param.data
         )
 
-# --- Dict flattening for logging ---
+# --- Dict flattening ---
 def flatten_dict(d, parent_key='', sep='.'):
     """
-    Recursively flatten a nested dictionary.
-    Example:
-        flatten_dict({'loss': 0.1, 'stats': {'mean': 1, 'std': 2}})
-        => {'loss': 0.1, 'stats.mean': 1, 'stats.std': 2}
-
-    Args:
-        d (dict): Input dict to flatten.
-        parent_key (str): Prefix for nested keys (internal).
-        sep (str): Separator between key levels.
-
-    Returns:
-        dict: Flattened dictionary.
+    Flatten nested dictionary for logging or serialization.
+    Example: {'a': {'b': 1}} -> {'a.b': 1}
     """
-    items = {}
+    items = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.update(flatten_dict(v, new_key, sep=sep))
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
-            items[new_key] = v
-    return items
+            items.append((new_key, v))
+    return dict(items)
 
-# --- Step counting utility ---
+# --- Step utilities ---
 def total_steps_from_scalars(scalars):
     """
     Compute total steps from a list of scalars log entries (as read from logger.read_scalars()).
@@ -164,3 +156,22 @@ def total_steps_from_scalars(scalars):
     if not scalars:
         return 0
     return max(entry.get('step', 0) for entry in scalars)
+
+# --- Reward statistics ---
+def compute_reward_stats(returns):
+    """
+    Compute mean, std, min, max for episode returns.
+    Args:
+        returns (list or array): Episode return values.
+    Returns:
+        dict: {'mean': float, 'std': float, 'min': float, 'max': float}
+    """
+    arr = np.array(returns, dtype=float)
+    if arr.size == 0:
+        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
+    return {
+        'mean': float(np.mean(arr)),
+        'std': float(np.std(arr)),
+        'min': float(np.min(arr)),
+        'max': float(np.max(arr))
+    }
