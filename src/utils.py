@@ -27,6 +27,8 @@ Examples:
     logger.log_scalars(flatten_dict(metrics), step=100)
     # Compute reward stats from episode returns log:
     stats = compute_reward_stats([10, 20, 15])  # {'mean': 15.0, 'std': 5.0, 'min': 10.0, 'max': 20.0}
+    # Compute quantiles for reward distributions:
+    quantiles = compute_quantiles([1, 2, 3, 4, 5], qs=[0.1, 0.5, 0.9])  # {0.1: 1.4, 0.5: 3.0, 0.9: 4.6}
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -122,42 +124,24 @@ def soft_update(target_net, source_net, tau: float):
     tau=1.0 gives a hard update (copy).
     """
     for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
-        target_param.data.copy_(
-            tau * source_param.data + (1.0 - tau) * target_param.data
-        )
+        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
 
 # --- Dict flattening ---
-def flatten_dict(d, parent_key='', sep='.'):
+def flatten_dict(d, parent_key="", sep="."):
     """
-    Flatten nested dictionary for logging or serialization.
-    Example: {'a': {'b': 1}} -> {'a.b': 1}
+    Flatten nested dictionaries for logging/serialization.
+    Converts {a: {b: 1}} to {'a.b': 1}.
     """
-    items = []
+    items = {}
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
+            items.update(flatten_dict(v, new_key, sep=sep))
         else:
-            items.append((new_key, v))
-    return dict(items)
+            items[new_key] = v
+    return items
 
-# --- Step utilities ---
-def total_steps_from_scalars(scalars):
-    """
-    Compute total steps from a list of scalars log entries (as read from logger.read_scalars()).
-    Returns the maximum step value, or 0 if empty.
-    Useful for restoring training progress or plotting.
-
-    Args:
-        scalars (list of dict): Each dict must have 'step' (int).
-    Returns:
-        int: Maximum step value in scalars, or 0 if empty.
-    """
-    if not scalars:
-        return 0
-    return max(entry.get('step', 0) for entry in scalars)
-
-# --- Reward statistics ---
+# --- Reward stats ---
 def compute_reward_stats(returns):
     """
     Compute mean, std, min, max for episode returns.
@@ -175,3 +159,21 @@ def compute_reward_stats(returns):
         'min': float(np.min(arr)),
         'max': float(np.max(arr))
     }
+
+# --- Quantile extraction ---
+def compute_quantiles(values, qs=[0.25, 0.5, 0.75]):
+    """
+    Compute quantiles (e.g., median, quartiles) for a sequence of values.
+    Args:
+        values (list or array): Input values (rewards, metrics, etc)
+        qs (list or array): Quantile values in [0,1], e.g. [0.25, 0.5, 0.75]
+    Returns:
+        dict: {q: quantile_value, ...} for each quantile
+    Example:
+        compute_quantiles([1,2,3,4,5], qs=[0.1, 0.5, 0.9]) => {0.1: 1.4, 0.5: 3.0, 0.9: 4.6}
+    """
+    arr = np.array(values, dtype=float)
+    if arr.size == 0:
+        return {q: 0.0 for q in qs}
+    quantile_vals = np.quantile(arr, qs)
+    return {float(q): float(v) for q, v in zip(qs, quantile_vals)}
