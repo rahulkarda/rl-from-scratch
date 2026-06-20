@@ -97,6 +97,16 @@ class ReplayBuffer:
         # Slice from right (most recent), but return in order (oldest to newest)
         return list(self.buffer)[-batch_size:]
 
+    def export_to_list(self) -> List[Transition]:
+        """
+        Export all transitions in the buffer as a list.
+        Useful for analysis, conversion, or integration with external tools.
+
+        Returns:
+            List[Transition]: List containing all transitions in order (oldest to newest).
+        """
+        return list(self.buffer)
+
     def __len__(self) -> int:
         """
         Returns the current number of transitions stored.
