@@ -12,6 +12,7 @@ class Logger:
       - Episode return logging: log_episode_return
       - Histogram logging: log_histogram
       - Reading logged data: read_scalars, read_episode_returns, read_histograms
+      - Episodic average logging: log_episode_average
 
     Example usage:
         logger = Logger(log_dir="logs/test_run")
@@ -19,6 +20,7 @@ class Logger:
         logger.log_episode_return(42.0, episode=3)
         logger.log_scalars({"loss": 0.32, "epsilon": 0.13}, step=10)
         logger.log_histogram("weights", np.array([1,2,3]), step=10)
+        logger.log_episode_average("reward", [1.0, 2.0, 3.0], episode=3)
         # Reading logged data:
         scalars = logger.read_scalars()
         returns = logger.read_episode_returns()
@@ -36,9 +38,11 @@ class Logger:
         self.scalar_path = os.path.join(log_dir, "scalars.csv")
         self.returns_path = os.path.join(log_dir, "episode_returns.csv")
         self.histogram_path = os.path.join(log_dir, "histograms.csv")
+        self.episode_avg_path = os.path.join(log_dir, "episode_averages.csv")
         self._init_scalar_file()
         self._init_returns_file()
         self._init_histogram_file()
+        self._init_episode_avg_file()
 
     # --- CSV file initializers ---
     def _init_scalar_file(self):
@@ -68,6 +72,16 @@ class Logger:
             with open(self.histogram_path, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["step", "name", "values"])
+
+    def _init_episode_avg_file(self):
+        """
+        Create episode_averages.csv file with header if it does not exist.
+        Format: episode, name, average, count
+        """
+        if not os.path.isfile(self.episode_avg_path):
+            with open(self.episode_avg_path, "w", newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["episode", "name", "average", "count"])
 
     # --- Scalar logging ---
     def log_scalar(self, name: str, value: float, step: int):
@@ -109,6 +123,24 @@ class Logger:
             writer = csv.writer(f)
             writer.writerow([episode, self._format_value(episode_return)])
 
+    # --- Episode average logging ---
+    def log_episode_average(self, name: str, values: Any, episode: int):
+        """
+        Log the average of a metric (e.g. reward, loss) over an episode.
+        Useful for tracking per-episode averages (not just returns).
+
+        Args:
+            name (str): Metric name
+            values (list/array): Sequence of values for the episode
+            episode (int): Episode index
+        """
+        arr = np.array(values, dtype=float)
+        avg = float(np.mean(arr)) if arr.size > 0 else 0.0
+        count = int(arr.size)
+        with open(self.episode_avg_path, "a", newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([episode, name, f"{avg:.6f}", count])
+
     # --- Histogram logging ---
     def log_histogram(self, name: str, values: Any, step: int):
         """
@@ -135,25 +167,22 @@ class Logger:
             return f"{value:.6f}"
         elif isinstance(value, int):
             return value
-        elif isinstance(value, str):
+        elif isinstance(value, np.floating):
+            return f"{float(value):.6f}"
+        elif isinstance(value, np.integer):
+            return int(value)
+        else:
             return value
-        try:
-            import numpy as np
-            if isinstance(value, np.floating):
-                return f"{float(value):.6f}"
-        except Exception:
-            pass
-        return value
 
-    # --- Reading logged data ---
+    # --- Reading logs ---
     def read_scalars(self) -> List[Dict[str, Any]]:
         """
-        Read logged scalar metrics from scalars.csv.
-        Returns a list of dicts: [{"step": int, "name": str, "value": float}, ...]
+        Read all logged scalar metrics from scalars.csv.
+
+        Returns:
+            List[dict]: Each dict contains step, name, value.
         """
         scalars = []
-        if not os.path.isfile(self.scalar_path):
-            return scalars
         with open(self.scalar_path, "r", newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -168,12 +197,12 @@ class Logger:
 
     def read_episode_returns(self) -> List[Dict[str, Any]]:
         """
-        Read episode returns from episode_returns.csv.
-        Returns a list of dicts: [{"episode": int, "return": float}, ...]
+        Read all logged episode returns from episode_returns.csv.
+
+        Returns:
+            List[dict]: Each dict contains episode, return.
         """
         returns = []
-        if not os.path.isfile(self.returns_path):
-            return returns
         with open(self.returns_path, "r", newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -185,14 +214,35 @@ class Logger:
                 returns.append({"episode": episode, "return": ret})
         return returns
 
+    def read_episode_averages(self) -> List[Dict[str, Any]]:
+        """
+        Read all logged episode averages from episode_averages.csv.
+
+        Returns:
+            List[dict]: Each dict contains episode, name, average, count.
+        """
+        episode_avgs = []
+        with open(self.episode_avg_path, "r", newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    episode = int(row["episode"])
+                    name = row["name"]
+                    avg = float(row["average"])
+                    count = int(row["count"])
+                except Exception:
+                    continue
+                episode_avgs.append({"episode": episode, "name": name, "average": avg, "count": count})
+        return episode_avgs
+
     def read_histograms(self) -> List[Dict[str, Any]]:
         """
-        Read logged histograms from histograms.csv.
-        Returns a list of dicts: [{"step": int, "name": str, "values": np.ndarray}, ...]
+        Read all logged histograms from histograms.csv.
+
+        Returns:
+            List[dict]: Each dict contains step, name, values (np.array).
         """
         histos = []
-        if not os.path.isfile(self.histogram_path):
-            return histos
         with open(self.histogram_path, "r", newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
