@@ -10,7 +10,7 @@
 - [x] DQN on CartPole
 - [x] Double DQN
 - [x] Dueling DQN
-- [ ] Prioritized replay
+- [ ] Prioritized replay  [in progress]
 
 ## Phase 3: policy-gradient
 - [ ] REINFORCE on CartPole
