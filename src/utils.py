@@ -118,54 +118,9 @@ def moving_std(values, window_size: int):
 # --- Polyak averaging ---
 def soft_update(target_net, source_net, tau: float):
     """
-    Polyak averaging (soft update) for target network parameters.
-    Each parameter in target_net is updated:
-        target = tau * source + (1 - tau) * target
-    tau=1.0 gives a hard update (copy).
-    """
-    for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
-        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
-
-# --- Dict flattening ---
-def flatten_dict(d, parent_key="", sep="."):
-    """
-    Flatten nested dictionaries for logging/serialization.
-    Converts {a: {b: 1}} to {'a.b': 1}.
-    """
-    items = {}
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.update(flatten_dict(v, new_key, sep=sep))
-        else:
-            items[new_key] = v
-    return items
-
-# --- Reward stats ---
-def compute_reward_stats(returns):
-    """
-    Compute mean, std, min, max for episode returns.
-    Args:
-        returns (list or array): Episode return values.
-    Returns:
-        dict: {'mean': float, 'std': float, 'min': float, 'max': float}
-    """
-    arr = np.array(returns, dtype=float)
-    if arr.size == 0:
-        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
-    return {
-        'mean': float(np.mean(arr)),
-        'std': float(np.std(arr)),
-        'min': float(np.min(arr)),
-        'max': float(np.max(arr))
-    }
-
-# --- Quantile extraction ---
-def compute_quantiles(values, qs=[0.25, 0.5, 0.75]):
-    """
-    Compute quantiles (e.g., median, quartiles) for a sequence of values.
-    Args:
-        values (list or array): Input values (rewards, metrics, etc)
+    Polyak averaging (soft update) for target netw
+... [truncated]
+t values (rewards, metrics, etc)
         qs (list or array): Quantile values in [0,1], e.g. [0.25, 0.5, 0.75]
     Returns:
         dict: {q: quantile_value, ...} for each quantile
