@@ -3,13 +3,24 @@
 Rationale:
 - FIFO queue (deque) ensures oldest transitions are discarded first, matching classic DQN-style replay.
 - Uniform sampling breaks temporal correlations for value-based algorithms.
-- Serialization (.save/.load) stores as dicts for compatibility and easy inspection.
+- Serialization (.save/.load) stores as dicts for compatibility and easy inspection (see below).
 - Not thread-safe; intended for single-process use.
 
 Usage:
     buf = ReplayBuffer(capacity=100_000)
     buf.push(Transition(...))
     batch = buf.sample(batch_size=32)
+    buf.save('buffer.pkl')  # Stores buffer as a list of dicts
+    buf.load('buffer.pkl')  # Loads buffer from dicts, reconstructs Transition objects
+    buf.clear()             # Removes all transitions
+    recent = buf.sample_recent(10)  # Returns most recent 10 transitions
+    all_transitions = buf.export_to_list()  # List of all transitions
+
+Serialization:
+- .save(path): Pickles a list of transition dicts (not raw objects), so the file is portable and readable.
+- .load(path): Reads dicts, reconstructs Transition dataclass (order preserved).
+- Useful for analysis, debugging, and integration with external tools.
+
 """
 import random
 from collections import deque
@@ -36,6 +47,11 @@ class ReplayBuffer:
         buf = ReplayBuffer(capacity=100_000)
         buf.push(Transition(...))
         batch = buf.sample(batch_size=32)
+        buf.save('buffer.pkl')
+        buf.load('buffer.pkl')
+        buf.clear()
+        recent = buf.sample_recent(10)
+        all_transitions = buf.export_to_list()
 
     Limitations:
         - Only supports uniform sampling (no prioritization).
