@@ -14,7 +14,7 @@ class EpsilonGreedyExplorer:
         epsilon_final (float): Final epsilon after decay.
         epsilon_decay (int): Number of steps over which to linearly decay epsilon.
     """
-    def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.01, epsilon_decay: int = 10000):
+    def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.01, epsilon_decay: int = 50000):
         self.epsilon_start = epsilon_start
         self.epsilon_final = epsilon_final
         self.epsilon_decay = epsilon_decay
