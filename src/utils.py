@@ -1,5 +1,5 @@
 """
-Basic utilities for RL experiments: seeding, running/moving averages, moving std, and Polyak averaging.
+Basic utilities for RL experiments: seeding, running/moving averages, moving std, Polyak averaging, dict flattening, and reward statistics.
 
 Rationale:
 - set_seed: Reproducibility is critical in RL due to noisy training and variance. Sets seeds for Python, NumPy, and PyTorch.
@@ -9,6 +9,8 @@ Rationale:
 - moving_std: Computes standard deviation over a fixed window. Useful for plotting reward curve uncertainty bands (shaded region).
 - soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
 - flatten_dict: Flattens nested dictionaries for logging (e.g., metrics) or serialization. Converts {a: {b: 1}} to {'a.b': 1}.
+- compute_reward_stats: Returns basic reward statistics from a list (mean, std, min, max). Useful for evaluating agent performance.
+- compute_quantiles: Computes arbitrary quantiles from a sequence, e.g. for reward distributions or Q-value analysis.
 
 Examples:
     set_seed(42)
@@ -29,6 +31,19 @@ Examples:
     stats = compute_reward_stats([10, 20, 15])  # {'mean': 15.0, 'std': 5.0, 'min': 10.0, 'max': 20.0}
     # Compute quantiles for reward distributions:
     quantiles = compute_quantiles([1, 2, 3, 4, 5], qs=[0.1, 0.5, 0.9])  # {0.1: 1.4, 0.5: 3.0, 0.9: 4.6}
+
+flatten_dict:
+    - Flattens arbitrarily nested dictionaries using dot notation.
+    - Useful for logging nested metrics, e.g. {'episode': {'reward': 10, 'length': 200}} -> {'episode.reward': 10, 'episode.length': 200}
+    - Recursively traverses all dicts; non-dict values are included as-is.
+
+compute_reward_stats:
+    - Given a list/array of rewards or returns, computes mean, std, min, max.
+    - Typically used to summarize performance over many episodes.
+
+compute_quantiles:
+    - Returns a dict mapping quantile values (e.g. 0.1, 0.5, 0.9) to the corresponding quantile in the sequence.
+    - Useful for plotting reward distribution percentiles, Q-value spread, or uncertainty analysis.
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -118,9 +133,63 @@ def moving_std(values, window_size: int):
 # --- Polyak averaging ---
 def soft_update(target_net, source_net, tau: float):
     """
-    Polyak averaging (soft update) for target netw
-... [truncated]
-t values (rewards, metrics, etc)
+    Polyak averaging (soft update) for target networks.
+    Updates target_net parameters as: target = tau * source + (1 - tau) * target
+    tau=1.0 gives a hard update (copy source to target).
+
+    Args:
+        target_net: torch.nn.Module, parameters to update
+        source_net: torch.nn.Module, parameters to copy from
+        tau (float): Interpolation factor (0.0-1.0)
+    """
+    for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
+        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
+
+# --- Dict flattening utility ---
+def flatten_dict(d, parent_key="", sep="."):
+    """
+    Flatten nested dictionaries using dot notation.
+    Example: {'a': {'b': 1}} -> {'a.b': 1}
+    Useful for logging nested metrics or CSV serialization.
+    """
+    items = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+# --- Reward statistics utility ---
+def compute_reward_stats(rewards):
+    """
+    Compute mean, std, min, max for episode returns or reward arrays.
+    Useful for evaluation and plotting performance summaries.
+
+    Args:
+        rewards (list or array): Episode returns or reward values
+    Returns:
+        dict: {'mean': float, 'std': float, 'min': float, 'max': float}
+    """
+    arr = np.array(rewards, dtype=float)
+    if arr.size == 0:
+        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
+    return {
+        'mean': float(arr.mean()),
+        'std': float(arr.std()),
+        'min': float(arr.min()),
+        'max': float(arr.max())
+    }
+
+# --- Quantile computation utility ---
+def compute_quantiles(values, qs):
+    """
+    Compute arbitrary quantiles for a sequence of values.
+    Useful for reward distributions, Q-value spread, or uncertainty analysis.
+
+    Args:
+        values (list or array): Input values (rewards, metrics, etc)
         qs (list or array): Quantile values in [0,1], e.g. [0.25, 0.5, 0.75]
     Returns:
         dict: {q: quantile_value, ...} for each quantile
