@@ -14,6 +14,7 @@ class Logger:
       - Reading logged data: read_scalars, read_episode_returns, read_histograms
       - Episodic average logging: log_episode_average
       - Scalar step lookup: read_scalar_steps
+      - Episode averages reading: read_episode_averages
 
     CSV file layout:
       - scalars.csv: step, name, value         # Each scalar metric (loss, epsilon, etc) per step
@@ -123,13 +124,13 @@ class Logger:
         """
         with open(self.scalar_path, "a", newline='') as f:
             writer = csv.writer(f)
-            for name, value in scalars.items():
-                writer.writerow([step, name, self._format_value(value)])
+            for k, v in scalars.items():
+                writer.writerow([step, k, self._format_value(v)])
 
     # --- Episode return logging ---
     def log_episode_return(self, episode_return: float, episode: int):
         """
-        Log total reward for an episode.
+        Log total reward (return) for an episode.
 
         Args:
             episode_return (float): Total reward for episode
@@ -142,14 +143,14 @@ class Logger:
     # --- Histogram logging ---
     def log_histogram(self, name: str, values: np.ndarray, step: int):
         """
-        Log array metric (e.g., Q-values, weights) as histogram.
+        Log array-valued metric (e.g., weight values, Q-values) as a comma-separated string.
 
         Args:
             name (str): Metric name
-            values (np.ndarray): Array values
+            values (np.ndarray): Array of values
             step (int): Step index
         """
-        values_str = ",".join([self._format_value(v) for v in values.flatten()])
+        values_str = ",".join(str(self._format_value(v)) for v in np.ravel(values))
         with open(self.histogram_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([step, name, values_str])
@@ -157,33 +158,33 @@ class Logger:
     # --- Episodic average logging ---
     def log_episode_average(self, name: str, values: List[float], episode: int):
         """
-        Log average of values (e.g. per-step rewards, losses) for an episode.
+        Log average of values for an episode (e.g., per-episode reward, loss).
 
         Args:
             name (str): Metric name
-            values (list[float]): Values to average
+            values (list of float): Values to average
             episode (int): Episode index
         """
-        avg = float(np.mean(values)) if values else 0.0
+        avg = np.mean(values) if len(values) > 0 else 0.0
         count = len(values)
         with open(self.episode_avg_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([episode, name, self._format_value(avg), count])
 
-    # --- Formatting ---
-    def _format_value(self, value: Any) -> str:
-        """
-        Format value as string for CSV (rounded floats).
-        """
-        if isinstance(value, float):
-            return f"{value:.6g}"
-        return str(value)
+    # --- Utility for numeric formatting ---
+    def _format_value(self, v):
+        try:
+            return f"{float(v):.6g}"
+        except Exception:
+            return str(v)
 
     # --- Reading methods ---
     def read_scalars(self) -> List[Dict[str, Any]]:
         """
         Read all scalar metrics from scalars.csv.
-        Returns: list of dicts {step, name, value}
+
+        Returns:
+            List[dict]: Each dict contains step, name, value.
         """
         scalars = []
         with open(self.scalar_path, "r", newline='') as f:
@@ -198,64 +199,30 @@ class Logger:
                 scalars.append({"step": step, "name": name, "value": value})
         return scalars
 
-    def read_scalar_steps(self, name: str) -> List[tuple]:
-        """
-        Read all steps and values for a given scalar metric.
-        Returns: sorted list of (step, value) pairs.
-        """
-        result = []
-        with open(self.scalar_path, "r", newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
-                    if row["name"] == name:
-                        step = int(row["step"])
-                        value = float(row["value"])
-                        result.append((step, value))
-                except Exception:
-                    continue
-        result.sort()
-        return result
-
     def read_episode_returns(self) -> List[float]:
         """
         Read episode returns from episode_returns.csv.
-        Returns: list of floats (episode returns).
+
+        Returns:
+            List[float]: List of episode returns.
         """
         returns = []
         with open(self.returns_path, "r", newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 try:
-                    ret = float(row["return"])
+                    val = float(row["return"])
                 except Exception:
                     continue
-                returns.append(ret)
+                returns.append(val)
         return returns
-
-    def read_episode_averages(self) -> List[Dict[str, Any]]:
-        """
-        Read per-episode averages from episode_averages.csv.
-        Returns: list of dicts {episode, name, average, count}
-        """
-        avgs = []
-        with open(self.episode_avg_path, "r", newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
-                    episode = int(row["episode"])
-                    name = row["name"]
-                    avg = float(row["average"])
-                    count = int(row["count"])
-                except Exception:
-                    continue
-                avgs.append({"episode": episode, "name": name, "average": avg, "count": count})
-        return avgs
 
     def read_histograms(self) -> List[Dict[str, Any]]:
         """
         Read histograms from histograms.csv.
-        Returns: list of dicts {step, name, values (np.ndarray)}
+
+        Returns:
+            List[dict]: Each dict contains step, name, values (as np.ndarray).
         """
         histos = []
         with open(self.histogram_path, "r", newline='') as f:
@@ -270,3 +237,49 @@ class Logger:
                     continue
                 histos.append({"step": step, "name": name, "values": values})
         return histos
+
+    def read_episode_averages(self) -> List[Dict[str, Any]]:
+        """
+        Read episode averages from episode_averages.csv.
+
+        Returns:
+            List[dict]: Each dict contains episode, name, average, count.
+        """
+        averages = []
+        with open(self.episode_avg_path, "r", newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    episode = int(row["episode"])
+                    name = row["name"]
+                    average = float(row["average"])
+                    count = int(row["count"])
+                except Exception:
+                    continue
+                averages.append({"episode": episode, "name": name, "average": average, "count": count})
+        return averages
+
+    def read_scalar_steps(self, name: str) -> List[Any]:
+        """
+        Read (step, value) pairs for a given scalar metric name from scalars.csv.
+        Sorted by step ascending.
+
+        Args:
+            name (str): Metric name to lookup
+        Returns:
+            List[(step, value)]: List of (step, value) pairs
+        """
+        pairs = []
+        with open(self.scalar_path, "r", newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    if row["name"] != name:
+                        continue
+                    step = int(row["step"])
+                    value = float(row["value"])
+                except Exception:
+                    continue
+                pairs.append((step, value))
+        pairs.sort()
+        return pairs
