@@ -32,6 +32,17 @@ pip install -r requirements.txt
   buf.load('buffer.pkl')
   ```
 
+- **PrioritizedReplayBuffer**:
+  ```python
+  from prioritized_replay import PrioritizedReplayBuffer, Transition
+  buf = PrioritizedReplayBuffer(capacity=10000, alpha=0.6)
+  buf.push(Transition(state, action, reward, next_state, done), priority=1.0)
+  batch, indices, weights = buf.sample(batch_size=32, beta=0.4)
+  buf.update_priorities(indices, new_priorities)
+  buf.save('buffer_prio.pkl')
+  buf.load('buffer_prio.pkl')
+  ```
+
 - **EpsilonGreedyExplorer**:
   ```python
   from explorer import EpsilonGreedyExplorer
