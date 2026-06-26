@@ -6,7 +6,11 @@ Rationale:
 - seed_everything: Sets seeds for Python, NumPy, PyTorch, AND Gymnasium environments (if provided). Ensures global reproducibility for full RL setup.
 - running_average: Useful for smoothing reward curves or losses over time. Computes cumulative average (up to each point).
 - moving_average: Computes average over a fixed window. Used for plotting recent episode returns and smoothing metrics.
+    - Typical usage: plot moving average of episode returns for performance tracking.
+    - Reduces variance/noise in reward curves, especially in early training.
 - moving_std: Computes standard deviation over a fixed window. Useful for plotting reward curve uncertainty bands (shaded region).
+    - Used to visualize variability in metrics (e.g. reward) during training.
+    - Often paired with moving_average for error bands (mean +/- std).
 - soft_update: Polyak averaging for target networks, needed in Double DQN/DDPG/SAC. Simple utility for updating target model parameters.
 - flatten_dict: Flattens nested dictionaries for logging (e.g., metrics) or serialization. Converts {a: {b: 1}} to {'a.b': 1}.
 - compute_reward_stats: Returns basic reward statistics from a list (mean, std, min, max). Useful for evaluating agent performance.
@@ -44,6 +48,16 @@ compute_reward_stats:
 compute_quantiles:
     - Returns a dict mapping quantile values (e.g. 0.1, 0.5, 0.9) to the corresponding quantile in the sequence.
     - Useful for plotting reward distribution percentiles, Q-value spread, or uncertainty analysis.
+
+moving_average:
+    - Computes average over a fixed window (rolling), e.g. for smoothing reward curves or loss values.
+    - Typical usage: moving_average([r1, r2, ...], window_size=100) for recent 100 episode returns.
+    - Reduces noise in metric visualization, especially for volatile RL signals.
+
+moving_std:
+    - Computes standard deviation over a fixed window (rolling).
+    - Used for error bands (mean +/- std) in plots, to show reward variability.
+    - Helps visualize uncertainty in performance or Q-values during training.
 
 These functions are intentionally minimal and avoid dependencies beyond numpy and torch.
 """
@@ -104,92 +118,77 @@ def moving_average(values, window_size: int):
     """
     Compute simple moving average over a list or array.
     Returns a sequence of averages where each average is computed over a sliding window of length `window_size`.
+    Typical usage: moving_average([v1, v2, ...], window_size=100) for reward curve smoothing.
     """
     values = np.array(values, dtype=float)
-    if window_size < 1:
-        raise ValueError("window_size must be >= 1")
-    if values.size < window_size:
+    if values.size < window_size or window_size < 1:
         return np.array([])
-    cumsum = np.cumsum(values)
-    cumsum[window_size:] -= cumsum[:-window_size]
-    return cumsum[window_size - 1:] / window_size
+    return np.convolve(values, np.ones(window_size), 'valid') / window_size
 
 
 def moving_std(values, window_size: int):
     """
-    Compute moving (sliding window) standard deviation over a list or array.
-    Returns a sequence of stds where each is computed over a sliding window of length `window_size`.
+    Compute moving standard deviation over a sliding window.
+    Returns a sequence of stds where each std is computed over a window of length `window_size`.
+    Useful for plotting error bands (mean +/- std) in reward curves.
     """
     values = np.array(values, dtype=float)
-    if window_size < 1:
-        raise ValueError("window_size must be >= 1")
-    if values.size < window_size:
+    if values.size < window_size or window_size < 1:
         return np.array([])
-    out = np.empty(values.size - window_size + 1)
-    for i in range(out.size):
-        out[i] = values[i:i+window_size].std()
-    return out
+    stds = []
+    for i in range(values.size - window_size + 1):
+        stds.append(np.std(values[i:i + window_size]))
+    return np.array(stds)
 
 # --- Polyak averaging ---
 def soft_update(target_net, source_net, tau: float):
     """
-    Polyak averaging (soft update) for target networks.
-    Updates target_net parameters as: target = tau * source + (1 - tau) * target
-    tau=1.0 gives a hard update (copy source to target).
-
+    Polyak averaging for target network parameters.
     Args:
-        target_net: torch.nn.Module, parameters to update
-        source_net: torch.nn.Module, parameters to copy from
-        tau (float): Interpolation factor (0.0-1.0)
+        target_net: PyTorch nn.Module to update
+        source_net: PyTorch nn.Module as source
+        tau (float): Interpolation factor (0.0 = no update, 1.0 = hard update)
     """
     for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
         target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
 
-# --- Dict flattening utility ---
-def flatten_dict(d, parent_key="", sep="."):
+# --- Dict flattening ---
+def flatten_dict(d, parent_key='', sep='.'):
     """
-    Flatten nested dictionaries using dot notation.
-    Example: {'a': {'b': 1}} -> {'a.b': 1}
-    Useful for logging nested metrics or CSV serialization.
+    Flatten arbitrarily nested dicts using dot notation.
+    Useful for logging nested metrics.
     """
     items = {}
     for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        new_key = parent_key + sep + k if parent_key else k
         if isinstance(v, dict):
             items.update(flatten_dict(v, new_key, sep=sep))
         else:
             items[new_key] = v
     return items
 
-# --- Reward statistics utility ---
+# --- Reward statistics ---
 def compute_reward_stats(rewards):
     """
-    Compute mean, std, min, max for episode returns or reward arrays.
-    Useful for evaluation and plotting performance summaries.
-
-    Args:
-        rewards (list or array): Episode returns or reward values
-    Returns:
-        dict: {'mean': float, 'std': float, 'min': float, 'max': float}
+    Compute mean, std, min, max for a sequence of rewards or returns.
+    Returns dict: {mean, std, min, max}.
     """
     arr = np.array(rewards, dtype=float)
     if arr.size == 0:
         return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
     return {
-        'mean': float(arr.mean()),
-        'std': float(arr.std()),
-        'min': float(arr.min()),
-        'max': float(arr.max())
+        'mean': float(np.mean(arr)),
+        'std': float(np.std(arr)),
+        'min': float(np.min(arr)),
+        'max': float(np.max(arr))
     }
 
-# --- Quantile computation utility ---
+# --- Quantile computation ---
 def compute_quantiles(values, qs):
     """
-    Compute arbitrary quantiles for a sequence of values.
-    Useful for reward distributions, Q-value spread, or uncertainty analysis.
-
+    Compute quantiles for a sequence.
     Args:
-        values (list or array): Input values (rewards, metrics, etc)
+        values (list/array): Input values (rewards, metrics, etc)
         qs (list or array): Quantile values in [0,1], e.g. [0.25, 0.5, 0.75]
     Returns:
         dict: {q: quantile_value, ...} for each quantile
