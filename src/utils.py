@@ -83,6 +83,7 @@ def seed_everything(seed: int, env=None) -> None:
     """
     Set random seeds for Python, NumPy, PyTorch, AND Gymnasium env (if provided).
     Ensures global reproducibility for RL experiments.
+    Also sets torch deterministic flags for full reproducibility.
     """
     set_seed(seed)
     try:
@@ -90,88 +91,106 @@ def seed_everything(seed: int, env=None) -> None:
         os.environ["PYTHONHASHSEED"] = str(seed)
     except Exception:
         pass
+    # Ensure torch deterministic/cudnn flags
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     if env is not None:
         # Gymnasium: seed via reset(seed=seed)
         try:
             env.reset(seed=seed)
         except Exception:
-            # Older gym envs may use env.seed(seed)
             try:
                 env.seed(seed)
             except Exception:
                 pass
 
-# --- Moving/running statistics ---
+# --- Running/moving averages ---
 def running_average(values):
     """
-    Compute running (cumulative) average for a sequence.
-    Each value is the average of all previous values up to that index.
+    Compute cumulative average up to each point.
+    Args:
+        values (list/array): Sequence of values
+    Returns:
+        np.ndarray: Array of running averages
     """
-    values = np.array(values, dtype=float)
-    if values.size == 0:
-        return np.array([])  # Fix: return empty array for empty input
-    cumsum = np.cumsum(values)
-    return cumsum / (np.arange(1, values.size + 1))
+    arr = np.array(values, dtype=float)
+    if arr.size == 0:
+        return np.array([])
+    return np.cumsum(arr) / np.arange(1, arr.size + 1)
 
 
 def moving_average(values, window_size: int):
     """
-    Compute simple moving average over a list or array.
-    Returns a sequence of averages where each average is computed over a sliding window of length `window_size`.
-    Typical usage: moving_average([v1, v2, ...], window_size=100) for reward curve smoothing.
+    Compute moving average over a fixed window.
+    Args:
+        values (list/array): Sequence of values
+        window_size (int): Window size for averaging
+    Returns:
+        np.ndarray: Array of moving averages
     """
-    values = np.array(values, dtype=float)
-    if values.size < window_size or window_size < 1:
+    arr = np.array(values, dtype=float)
+    if arr.size < window_size or window_size < 1:
         return np.array([])
-    return np.convolve(values, np.ones(window_size), 'valid') / window_size
+    return np.convolve(arr, np.ones(window_size), 'valid') / window_size
 
 
 def moving_std(values, window_size: int):
     """
-    Compute moving standard deviation over a sliding window.
-    Returns a sequence of stds where each std is computed over a window of length `window_size`.
-    Useful for plotting error bands (mean +/- std) in reward curves.
+    Compute moving standard deviation over a fixed window.
+    Args:
+        values (list/array): Sequence of values
+        window_size (int): Window size for std
+    Returns:
+        np.ndarray: Array of moving stds
     """
-    values = np.array(values, dtype=float)
-    if values.size < window_size or window_size < 1:
+    arr = np.array(values, dtype=float)
+    if arr.size < window_size or window_size < 1:
         return np.array([])
-    stds = []
-    for i in range(values.size - window_size + 1):
-        stds.append(np.std(values[i:i + window_size]))
-    return np.array(stds)
+    return np.array([arr[i:i+window_size].std(ddof=0) for i in range(arr.size - window_size + 1)])
 
 # --- Polyak averaging ---
 def soft_update(target_net, source_net, tau: float):
     """
-    Polyak averaging for target network parameters.
+    Polyak averaging (soft update) for target network parameters.
     Args:
-        target_net: PyTorch nn.Module to update
-        source_net: PyTorch nn.Module as source
-        tau (float): Interpolation factor (0.0 = no update, 1.0 = hard update)
+        target_net (torch.nn.Module): Target network
+        source_net (torch.nn.Module): Source network
+        tau (float): Interpolation coefficient [0,1]
     """
-    for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
-        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
+    for t_param, s_param in zip(target_net.parameters(), source_net.parameters()):
+        t_param.data.copy_(tau * s_param.data + (1.0 - tau) * t_param.data)
 
-# --- Dict flattening ---
-def flatten_dict(d, parent_key='', sep='.'):
+# --- Dict flatten utility ---
+def flatten_dict(d, parent_key='', sep='.'):  # recursive
     """
-    Flatten arbitrarily nested dicts using dot notation.
-    Useful for logging nested metrics.
+    Flatten nested dictionary using dot notation.
+    Args:
+        d (dict): Nested dictionary
+        parent_key (str): Prefix key
+        sep (str): Separator (default '.')
+    Returns:
+        dict: Flattened dictionary
     """
-    items = {}
+    items = []
     for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.update(flatten_dict(v, new_key, sep=sep))
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
-            items[new_key] = v
-    return items
+            items.append((new_key, v))
+    return dict(items)
 
-# --- Reward statistics ---
+# --- Reward stats ---
 def compute_reward_stats(rewards):
     """
-    Compute mean, std, min, max for a sequence of rewards or returns.
-    Returns dict: {mean, std, min, max}.
+    Compute mean, std, min, max from a list/array of rewards or returns.
+    Args:
+        rewards (list/array): Sequence of rewards/returns
+    Returns:
+        dict: {'mean', 'std', 'min', 'max'}
     """
     arr = np.array(rewards, dtype=float)
     if arr.size == 0:
@@ -180,15 +199,15 @@ def compute_reward_stats(rewards):
         'mean': float(np.mean(arr)),
         'std': float(np.std(arr)),
         'min': float(np.min(arr)),
-        'max': float(np.max(arr))
+        'max': float(np.max(arr)),
     }
 
-# --- Quantile computation ---
+# --- Quantile stats ---
 def compute_quantiles(values, qs):
     """
-    Compute quantiles for a sequence.
+    Compute quantiles for a sequence of values.
     Args:
-        values (list/array): Input values (rewards, metrics, etc)
+        values (list/array): Sequence of float values (rewards, metrics, etc)
         qs (list or array): Quantile values in [0,1], e.g. [0.25, 0.5, 0.75]
     Returns:
         dict: {q: quantile_value, ...} for each quantile
