@@ -23,11 +23,11 @@ class Logger:
       - episode_averages.csv: episode, name, average, count  # Per-episode averages (e.g. reward, loss)
 
     Reading methods:
-      - read_scalars(): returns list of dicts {step, name, value} for all scalar metrics
-      - read_episode_returns(): returns list of floats (episode returns)
-      - read_histograms(): returns list of dicts {step, name, values (np.ndarray)}
-      - read_episode_averages(): returns list of dicts {episode, name, average, count}
-      - read_scalar_steps(name): returns sorted list of (step, value) pairs for a given scalar
+      - read_scalars(): list[dict] {step, name, value} for all scalar metrics
+      - read_episode_returns(): list[float] (episode returns)
+      - read_histograms(): list[dict] {step, name, values (np.ndarray)}
+      - read_episode_averages(): list[dict] {episode, name, average, count}
+      - read_scalar_steps(name): sorted list[(step, value)] for a given scalar
 
     Example usage:
         logger = Logger(log_dir="logs/test_run")
@@ -56,55 +56,33 @@ class Logger:
         self.returns_path = os.path.join(log_dir, "episode_returns.csv")
         self.histogram_path = os.path.join(log_dir, "histograms.csv")
         self.episode_avg_path = os.path.join(log_dir, "episode_averages.csv")
-        self._init_scalar_file()
-        self._init_returns_file()
-        self._init_histogram_file()
-        self._init_episode_avg_file()
+        self._init_all_files()
 
-    # --- CSV file initializers ---
-    def _init_scalar_file(self):
+    def _init_all_files(self):
         """
-        Create scalars.csv file with header if it does not exist.
+        Initialize all CSV files with correct headers if not present.
         """
-        if not os.path.isfile(self.scalar_path):
-            with open(self.scalar_path, "w", newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["step", "name", "value"])
+        self._init_csv_file(self.scalar_path, ["step", "name", "value"])
+        self._init_csv_file(self.returns_path, ["episode", "return"])
+        self._init_csv_file(self.histogram_path, ["step", "name", "values"])
+        self._init_csv_file(self.episode_avg_path, ["episode", "name", "average", "count"])
 
-    def _init_returns_file(self):
+    def _init_csv_file(self, path: str, header: List[str]):
         """
-        Create episode_returns.csv file with header if it does not exist.
+        Create CSV file with header if not exists.
+        Args:
+            path (str): CSV file path
+            header (list[str]): CSV column names
         """
-        if not os.path.isfile(self.returns_path):
-            with open(self.returns_path, "w", newline='') as f:
+        if not os.path.isfile(path):
+            with open(path, "w", newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(["episode", "return"])
-
-    def _init_histogram_file(self):
-        """
-        Create histograms.csv file with header if it does not exist.
-        Format: step, name, values (comma-separated string)
-        """
-        if not os.path.isfile(self.histogram_path):
-            with open(self.histogram_path, "w", newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["step", "name", "values"])
-
-    def _init_episode_avg_file(self):
-        """
-        Create episode_averages.csv file with header if it does not exist.
-        Format: episode, name, average, count
-        """
-        if not os.path.isfile(self.episode_avg_path):
-            with open(self.episode_avg_path, "w", newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["episode", "name", "average", "count"])
+                writer.writerow(header)
 
     # --- Scalar logging ---
     def log_scalar(self, name: str, value: float, step: int):
         """
-        Log a single scalar metric (e.g., loss, epsilon) for a given step.
-
+        Log a single scalar metric (e.g., loss, epsilon) for a step.
         Args:
             name (str): Metric name
             value (float): Metric value
@@ -117,9 +95,8 @@ class Logger:
     def log_scalars(self, scalars: Dict[str, Any], step: int):
         """
         Log multiple scalar metrics for a given step.
-
         Args:
-            scalars (dict): Mapping from metric name to value
+            scalars (dict): {metric name: value}
             step (int): Step index
         """
         with open(self.scalar_path, "a", newline='') as f:
@@ -127,53 +104,45 @@ class Logger:
             for name, value in scalars.items():
                 writer.writerow([step, name, self._format_value(value)])
 
-    def _format_value(self, value: Any) -> str:
-        """
-        Format value for csv: ensures float is not scientific notation and is string.
-        """
-        if isinstance(value, float):
-            return str(value)
-        return str(value)
-
     # --- Episode return logging ---
-    def log_episode_return(self, episode_return: float, episode: int):
+    def log_episode_return(self, value: float, episode: int):
         """
-        Log episode return (total reward) for a given episode.
-
+        Log total episode return for a given episode.
         Args:
-            episode_return (float): Total reward
+            value (float): Episode return
             episode (int): Episode index
         """
         with open(self.returns_path, "a", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([episode, self._format_value(episode_return)])
+            writer.writerow([episode, self._format_value(value)])
 
     # --- Histogram logging ---
     def log_histogram(self, name: str, values: np.ndarray, step: int):
         """
-        Log a histogram (array of values) as a comma-separated string for a given step.
-
+        Log a histogram (array metric) for a given step.
         Args:
             name (str): Metric name
             values (np.ndarray): Array of values
             step (int): Step index
         """
-        vals_str = ','.join([self._format_value(v) for v in values.tolist()])
+        if not isinstance(values, np.ndarray):
+            values = np.array(values)
+        values_str = ','.join(str(self._format_value(v)) for v in values.flatten())
         with open(self.histogram_path, "a", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([step, name, vals_str])
+            writer.writerow([step, name, values_str])
 
+    # --- Episode average logging ---
     def log_episode_average(self, name: str, values: List[float], episode: int):
         """
-        Log average (mean) of values for a given episode, with count.
-
+        Log average of values for a given episode (e.g., reward, loss).
         Args:
             name (str): Metric name
-            values (list): Values to average
+            values (list[float]): Values to average
             episode (int): Episode index
         """
         avg = float(np.mean(values)) if values else 0.0
-        count = len(values)
+        count = int(len(values))
         with open(self.episode_avg_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([episode, name, self._format_value(avg), count])
@@ -182,9 +151,8 @@ class Logger:
     def read_scalars(self) -> List[Dict[str, Any]]:
         """
         Read all scalar metrics from scalars.csv.
-
         Returns:
-            list of dicts: {step, name, value}
+            list[dict]: [{step, name, value}, ...]
         """
         scalars = []
         with open(self.scalar_path, "r", newline='') as f:
@@ -202,10 +170,9 @@ class Logger:
 
     def read_episode_returns(self) -> List[float]:
         """
-        Read episode returns (total rewards) from episode_returns.csv.
-
+        Read episode returns from episode_returns.csv.
         Returns:
-            list of floats: episode returns
+            list[float]: episode returns
         """
         returns = []
         with open(self.returns_path, "r", newline='') as f:
@@ -220,16 +187,15 @@ class Logger:
     def read_histograms(self) -> List[Dict[str, Any]]:
         """
         Read histograms from histograms.csv.
-
         Returns:
-            list of dicts: {step, name, values (np.ndarray)}
+            list[dict]: [{step, name, values (np.ndarray)}, ...]
         """
         histos = []
         with open(self.histogram_path, "r", newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 try:
-                    values = np.array([float(v) for v in row["values"].split(',') if v])
+                    values = np.array([float(x) for x in row["values"].split(",") if x != ""])
                     histos.append({
                         "step": int(row["step"]),
                         "name": row["name"],
@@ -241,10 +207,9 @@ class Logger:
 
     def read_episode_averages(self) -> List[Dict[str, Any]]:
         """
-        Read episode averages (mean metric per episode) from episode_averages.csv.
-
+        Read episode averages from episode_averages.csv.
         Returns:
-            list of dicts: {episode, name, average, count}
+            list[dict]: [{episode, name, average, count}, ...]
         """
         avgs = []
         with open(self.episode_avg_path, "r", newline='') as f:
@@ -263,10 +228,9 @@ class Logger:
 
     def read_scalar_steps(self, name: str) -> List[tuple]:
         """
-        Read all (step, value) pairs for a given scalar metric name, sorted by step.
-
+        Read all (step, value) pairs for a scalar metric by name.
         Returns:
-            list of (step, value) tuples
+            list[(step, value)]: sorted by step
         """
         pairs = []
         with open(self.scalar_path, "r", newline='') as f:
@@ -282,3 +246,17 @@ class Logger:
                 pairs.append((step, value))
         pairs.sort()
         return pairs
+
+    @staticmethod
+    def _format_value(value: Any) -> str:
+        """
+        Format value as string for CSV to avoid scientific notation.
+        Args:
+            value: scalar value
+        Returns:
+            str: formatted value
+        """
+        if isinstance(value, float):
+            # Use plain string to avoid CSV scientific notation
+            return str(value)
+        return str(value)
