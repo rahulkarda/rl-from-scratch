@@ -7,7 +7,7 @@ Rationale:
 - Not thread-safe; intended for single-process use.
 
 Usage:
-    buf = ReplayBuffer(capacity=500_000)
+    buf = ReplayBuffer(capacity=100_000)
     buf.push(Transition(...))
     batch = buf.sample(batch_size=32)
     buf.save('buffer.pkl')  # Stores buffer as a list of dicts
@@ -44,7 +44,7 @@ class ReplayBuffer:
     Used in value-based RL algorithms (e.g., DQN) to break correlation between sequential samples.
 
     Usage:
-        buf = ReplayBuffer(capacity=500_000)
+        buf = ReplayBuffer(capacity=100_000)
         buf.push(Transition(...))
         batch = buf.sample(batch_size=32)
         buf.save('buffer.pkl')
@@ -60,7 +60,7 @@ class ReplayBuffer:
         - Serialization via .save/.load uses dict conversion for compatibility.
     """
 
-    def __init__(self, capacity: int = 500_000):
+    def __init__(self, capacity: int = 100_000):
         """
         Initialize the replay buffer with a fixed capacity.
 
