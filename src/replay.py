@@ -20,6 +20,7 @@ Serialization:
 - .save(path): Pickles a list of transition dicts (not raw objects), so the file is portable and readable.
 - .load(path): Reads dicts, reconstructs Transition dataclass (order preserved).
 - Useful for analysis, debugging, and integration with external tools.
+- You can inspect the buffer file with Python or tools like pandas, since it's a list of dicts (not opaque objects).
 
 """
 import random
@@ -136,6 +137,7 @@ class ReplayBuffer:
         """
         Save buffer contents to a file using pickle.
         Stores as a list of transition dicts for compatibility.
+        You can inspect the .pkl file with Python or pandas as a list of dicts.
 
         Args:
             path (str): File path to save buffer.
@@ -146,6 +148,7 @@ class ReplayBuffer:
     def load(self, path: str) -> None:
         """
         Load buffer contents from a file previously saved by .save().
+        Reads transition dicts and reconstructs Transition objects (order preserved).
 
         Args:
             path (str): File path to load buffer from.
