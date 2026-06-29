@@ -13,7 +13,7 @@
 - [ ] Prioritized replay  [in progress]
     - [x] Buffer skeleton with push, sample, save/load
     - [x] Priority update method (update_priorities)
-    - [ ] Integration in agent
+    - [x] Integration in agent
     - [ ] Comparison with uniform replay
 
 ## Phase 3: policy-gradient
