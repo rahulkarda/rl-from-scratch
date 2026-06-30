@@ -1,27 +1,27 @@
 """
-Basic utilities for RL experiments: seeding, running/moving averages, moving std, Polyak averaging, dict flattening, and reward stats.
+Basic utilities for RL experiments: seeding, averaging, Polyak update, dict flattening, and reward stats.
 
-Rationale:
+Purpose:
 - set_seed: Reproducibility for Python, NumPy, PyTorch
 - seed_everything: Global seeding incl. Gymnasium envs
-- running_average: Cumulative average, e.g. smoothing reward curves
-- moving_average: Rolling average over window, for reward/loss smoothing
-- moving_std: Rolling std over window, for error bands/uncertainty plots
+- running_average: Cumulative average smoothing
+- moving_average: Rolling mean for reward/loss curves
+- moving_std: Rolling std for error bands
 - soft_update: Polyak averaging for target networks
-- flatten_dict: Makes nested dicts flat for CSV logging
-- compute_reward_stats: Summarizes reward distributions
-- compute_quantiles: Arbitrary quantile extraction for distributions
+- flatten_dict: Flatten nested dicts for logging
+- compute_reward_stats: Summarize reward distributions
+- compute_quantiles: Extract arbitrary quantiles
 
-Minimal dependencies: only numpy and torch.
+Minimal dependencies: numpy, torch.
 """
 import random
 import numpy as np
 import torch
 
-# --- Seeding utilities ---
+# === Seeding ===
 def set_seed(seed: int) -> None:
     """
-    Set random seed for reproducibility across Python, NumPy, and PyTorch.
+    Set random seed for Python, NumPy, and PyTorch.
     """
     random.seed(seed)
     np.random.seed(seed)
@@ -34,8 +34,8 @@ def set_seed(seed: int) -> None:
 
 def seed_everything(seed: int, env=None) -> None:
     """
-    Set seeds for Python, NumPy, PyTorch, AND Gymnasium env (if provided).
-    Also sets torch deterministic flags for reproducibility.
+    Set seeds for Python, NumPy, PyTorch, and Gymnasium env (if provided).
+    Also sets torch deterministic flags.
     """
     set_seed(seed)
     try:
@@ -55,14 +55,14 @@ def seed_everything(seed: int, env=None) -> None:
             except Exception:
                 pass
 
-# --- Averaging utilities ---
+# === Averaging ===
 def running_average(values):
     """
-    Compute cumulative average up to each point.
+    Compute cumulative average for each step.
     Args:
-        values (array-like): Sequence of numbers
+        values: sequence of numbers
     Returns:
-        np.ndarray: running average array (same length)
+        np.ndarray: running average (same length)
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
@@ -72,10 +72,10 @@ def running_average(values):
 
 def moving_average(values, window_size: int):
     """
-    Compute rolling average over fixed window.
+    Compute rolling mean over window.
     Args:
-        values (array-like)
-        window_size (int): Window length
+        values: sequence
+        window_size: window length
     Returns:
         np.ndarray: averaged array (len = len(values) - window_size + 1)
     """
@@ -87,10 +87,10 @@ def moving_average(values, window_size: int):
 
 def moving_std(values, window_size: int):
     """
-    Rolling std deviation over fixed window.
+    Rolling std deviation over window.
     Args:
-        values (array-like)
-        window_size (int)
+        values: sequence
+        window_size: window length
     Returns:
         np.ndarray: std array (len = len(values) - window_size + 1)
     """
@@ -102,26 +102,26 @@ def moving_std(values, window_size: int):
         out[i] = np.std(values[i:i+window_size])
     return out
 
-# --- Polyak averaging ---
+# === Polyak Averaging ===
 def soft_update(target_net, source_net, tau: float):
     """
     Polyak averaging for target network update.
     Args:
         target_net: torch.nn.Module to update
         source_net: torch.nn.Module source
-        tau (float): Blend factor (tau=1 is hard copy)
+        tau: blend factor (tau=1 is hard copy)
     """
     for t_param, s_param in zip(target_net.parameters(), source_net.parameters()):
         t_param.data.copy_(tau * s_param.data + (1.0 - tau) * t_param.data)
 
-# --- Dict flattening ---
+# === Dict Flattening ===
 def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) -> {'a.b': 1}
     """
-    Flatten arbitrarily nested dicts using dot notation.
+    Flatten nested dicts using dot notation.
     Args:
-        d (dict): Nested dict
-        parent_key (str): prefix
-        sep (str): separator
+        d: nested dict
+        parent_key: prefix
+        sep: separator
     Returns:
         dict: flat dict
     """
@@ -134,12 +134,12 @@ def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) ->
             items.append((new_key, v))
     return dict(items)
 
-# --- Reward stats ---
+# === Reward Stats ===
 def compute_reward_stats(returns):
     """
-    Summarize reward distribution: mean, std, min, max.
+    Compute mean, std, min, max for rewards/returns.
     Args:
-        returns (array-like): Sequence of rewards/returns
+        returns: sequence
     Returns:
         dict: {'mean', 'std', 'min', 'max'}
     """
@@ -153,13 +153,13 @@ def compute_reward_stats(returns):
         'max': float(np.max(arr))
     }
 
-# --- Quantile extraction ---
+# === Quantile Extraction ===
 def compute_quantiles(values, qs):
     """
-    Compute arbitrary quantiles from sequence.
+    Compute arbitrary quantiles from values.
     Args:
-        values (array-like): Input values (rewards, metrics, etc)
-        qs (list/array): Quantile values in [0,1]
+        values: sequence
+        qs: quantile values in [0,1]
     Returns:
         dict: {q: quantile_value, ...}
     """
