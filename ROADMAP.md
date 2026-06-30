@@ -14,7 +14,7 @@
     - [x] Buffer skeleton with push, sample, save/load
     - [x] Priority update method (update_priorities)
     - [x] Integration in agent
-    - [ ] Comparison with uniform replay
+    - [x] Comparison with uniform replay
 
 ## Phase 3: policy-gradient
 - [ ] REINFORCE on CartPole
