@@ -10,7 +10,7 @@
 - [x] DQN on CartPole
 - [x] Double DQN
 - [x] Dueling DQN
-- [ ] Prioritized replay  [in progress]
+- [x] Prioritized replay  [in progress]
     - [x] Buffer skeleton with push, sample, save/load
     - [x] Priority update method (update_priorities)
     - [x] Integration in agent
