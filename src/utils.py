@@ -12,6 +12,13 @@ Purpose:
 - compute_reward_stats: Summarize reward distributions
 - compute_quantiles: Extract arbitrary quantiles
 
+Notes:
+- Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
+- All averaging and stats utilities handle empty input gracefully (returns empty array or zeros).
+- Serialization (seed_everything) is robust to envs missing .seed or .reset(seed=...).
+- Polyak averaging (soft_update) assumes matching parameter shapes between models.
+- flatten_dict flattens nested dicts for logging and CSV compatibility.
+
 Minimal dependencies: numpy, torch.
 """
 import random
