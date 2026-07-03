@@ -11,6 +11,7 @@ Purpose:
 - flatten_dict: Flatten nested dicts for logging
 - compute_reward_stats: Summarize reward distributions
 - compute_quantiles: Extract arbitrary quantiles
+- compute_median: Median utility for reward stats
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -148,16 +149,17 @@ def compute_reward_stats(returns):
     Args:
         returns: sequence
     Returns:
-        dict: {'mean', 'std', 'min', 'max'}
+        dict: {'mean', 'std', 'min', 'max', 'median'}
     """
     arr = np.array(returns, dtype=float)
     if arr.size == 0:
-        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
+        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'median': 0.0}
     return {
         'mean': float(np.mean(arr)),
         'std': float(np.std(arr)),
         'min': float(np.min(arr)),
-        'max': float(np.max(arr))
+        'max': float(np.max(arr)),
+        'median': float(np.median(arr))
     }
 
 # === Quantile Extraction ===
@@ -175,3 +177,17 @@ def compute_quantiles(values, qs):
         return {q: 0.0 for q in qs}
     quantile_vals = np.quantile(arr, qs)
     return {float(q): float(v) for q, v in zip(qs, quantile_vals)}
+
+# === Median Utility ===
+def compute_median(values):
+    """
+    Compute median of values, returns 0.0 if empty.
+    Args:
+        values: sequence
+    Returns:
+        float: median value
+    """
+    arr = np.array(values, dtype=float)
+    if arr.size == 0:
+        return 0.0
+    return float(np.median(arr))
