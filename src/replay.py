@@ -104,15 +104,15 @@ class ReplayBuffer:
         Args:
             batch_size (int): Number of transitions to return.
         Returns:
-            List[Transition]: List of the latest transitions (ordered: oldest to newest).
+            List[Transition]: List of the latest transitions (ordered: newest to oldest).
 
         Raises:
             ValueError: If batch_size > number of transitions in buffer.
         """
         if batch_size > len(self.buffer):
             raise ValueError(f"Cannot sample_recent batch_size={batch_size} from buffer with {len(self.buffer)} transitions.")
-        # Slice from right (most recent), but return in order (oldest to newest)
-        return list(self.buffer)[-batch_size:]
+        # Return most recent N transitions, ordered newest to oldest
+        return list(self.buffer)[-batch_size:][::-1]
 
     def export_to_list(self) -> List[Transition]:
         """
@@ -135,19 +135,17 @@ class ReplayBuffer:
 
     def save(self, path: str) -> None:
         """
-        Save buffer contents to a file using pickle.
-        Stores as a list of transition dicts for compatibility.
-        You can inspect the .pkl file with Python or pandas as a list of dicts.
-
+        Serialize buffer to disk as a list of transition dicts.
         Args:
             path (str): File path to save buffer.
         """
+        items = [asdict(t) for t in self.buffer]
         with open(path, 'wb') as f:
-            pickle.dump([asdict(t) for t in self.buffer], f)
+            pickle.dump(items, f)
 
     def load(self, path: str) -> None:
         """
-        Load buffer contents from a file previously saved by .save().
+        Load buffer from disk, reconstructing Transition objects.
         Reads transition dicts and reconstructs Transition objects (order preserved).
 
         Args:
