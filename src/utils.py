@@ -25,6 +25,7 @@ Minimal dependencies: numpy, torch.
 import random
 import numpy as np
 import torch
+import collections.abc
 
 # === Seeding ===
 def set_seed(seed: int) -> None:
@@ -127,7 +128,7 @@ def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) ->
     """
     Flatten nested dicts using dot notation.
     Args:
-        d: nested dict
+        d: nested dict or mapping
         parent_key: prefix
         sep: separator
     Returns:
@@ -136,7 +137,7 @@ def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) ->
     items = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
+        if isinstance(v, collections.abc.Mapping):
             items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
