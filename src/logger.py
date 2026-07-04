@@ -122,10 +122,10 @@ class Logger:
         Log a histogram (array metric) for a given step.
         Args:
             name (str): Metric name
-            values (np.ndarray): Array of values
+            values (np.ndarray): Array values
             step (int): Step index
         """
-        values_str = ",".join(str(v) for v in np.array(values).flatten())
+        values_str = ",".join(str(v) for v in values.tolist())
         with open(self.histogram_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([step, name, values_str])
@@ -133,115 +133,101 @@ class Logger:
     # --- Episode average logging ---
     def log_episode_average(self, name: str, values: List[float], episode: int):
         """
-        Log average value for a metric over an episode.
+        Log average of metric values for a given episode.
         Args:
             name (str): Metric name
-            values (list[float]): Values to average
+            values (list[float]): Metric values
             episode (int): Episode index
         """
         avg = float(np.mean(values)) if values else 0.0
-        cnt = len(values)
+        count = len(values)
         with open(self.episode_avg_path, "a", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([episode, name, self._format_value(avg), cnt])
+            writer.writerow([episode, name, self._format_value(avg), count])
 
-    # --- Scalar reading ---
+    # --- Reading methods ---
     def read_scalars(self) -> List[Dict[str, Any]]:
         """
         Read all scalar metrics from scalars.csv.
         Returns:
-            list[dict]: Each dict has keys {step, name, value}
+            list[dict]: [{step, name, value}, ...]
         """
-        scalars = []
+        out = []
         with open(self.scalar_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                try:
-                    step = int(row["step"])
-                    name = row["name"]
-                    value = float(row["value"])
-                    scalars.append({"step": step, "name": name, "value": value})
-                except Exception:
-                    continue
-        return scalars
+                out.append({
+                    "step": int(row["step"]),
+                    "name": row["name"],
+                    "value": float(row["value"])
+                })
+        return out
 
     def read_episode_returns(self) -> List[float]:
         """
         Read all episode returns from episode_returns.csv.
         Returns:
-            list[float]: Episode returns (total rewards)
+            list[float]: episode returns
         """
-        returns = []
+        out = []
         with open(self.returns_path, "r") as f:
-            reader = csv.reader(f)
-            next(reader, None)  # Skip header
+            reader = csv.DictReader(f)
             for row in reader:
-                if not row or len(row) < 2:
-                    continue
-                try:
-                    value = float(row[1])
-                    returns.append(value)
-                except Exception:
-                    continue
-        return returns
+                out.append(float(row["return"]))
+        return out
 
     def read_histograms(self) -> List[Dict[str, Any]]:
         """
         Read all histograms from histograms.csv.
         Returns:
-            list[dict]: {step, name, values (np.ndarray)}
+            list[dict]: [{step, name, values (np.ndarray)}, ...]
         """
-        histos = []
+        out = []
         with open(self.histogram_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                try:
-                    step = int(row["step"])
-                    name = row["name"]
-                    values = np.array([float(v) for v in row["values"].split(",") if v.strip() != ""])
-                    histos.append({"step": step, "name": name, "values": values})
-                except Exception:
-                    continue
-        return histos
+                arr = np.array([float(v) for v in row["values"].split(",")])
+                out.append({
+                    "step": int(row["step"]),
+                    "name": row["name"],
+                    "values": arr
+                })
+        return out
 
     def read_episode_averages(self) -> List[Dict[str, Any]]:
         """
-        Read all per-episode averages from episode_averages.csv.
+        Read per-episode averages from episode_averages.csv.
         Returns:
-            list[dict]: {episode, name, average, count}
+            list[dict]: [{episode, name, average, count}, ...]
         """
-        avgs = []
+        out = []
         with open(self.episode_avg_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                try:
-                    episode = int(row["episode"])
-                    name = row["name"]
-                    average = float(row["average"])
-                    count = int(row["count"])
-                    avgs.append({"episode": episode, "name": name, "average": average, "count": count})
-                except Exception:
-                    continue
-        return avgs
+                out.append({
+                    "episode": int(row["episode"]),
+                    "name": row["name"],
+                    "average": float(row["average"]),
+                    "count": int(row["count"])
+                })
+        return out
 
     def read_scalar_steps(self, name: str) -> List[tuple]:
         """
-        Read all (step, value) pairs for the given scalar name.
+        Read (step, value) pairs for a given scalar metric, sorted by step.
+        Args:
+            name (str): Metric name
         Returns:
-            list[(step, value)] sorted by step.
+            list[tuple]: [(step, value), ...] sorted by step
         """
         pairs = []
         with open(self.scalar_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                try:
-                    if row["name"] != name:
-                        continue
+                if row["name"] == name:
                     step = int(row["step"])
                     value = float(row["value"])
-                except Exception:
-                    continue
-                pairs.append((step, value))
+                    pairs.append((step, value))
         pairs.sort()
         return pairs
 
