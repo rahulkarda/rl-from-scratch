@@ -2,6 +2,7 @@ import os
 import csv
 from typing import Dict, Any, List
 import numpy as np
+import json
 
 class Logger:
     """
@@ -16,11 +17,15 @@ class Logger:
       - Scalar step lookup: read_scalar_steps
       - Episode averages reading: read_episode_averages
 
+      - JSON logging: log_json, read_json  # NEW
+
     CSV file layout:
       - scalars.csv: step, name, value         # Each scalar metric (loss, epsilon, etc) per step
       - episode_returns.csv: episode, return   # Total reward per episode
       - histograms.csv: step, name, values     # Array metrics (weights, Q-values) as comma-separated strings
       - episode_averages.csv: episode, name, average, count  # Per-episode averages (e.g. reward, loss)
+    JSON file layout:
+      - logs.json: list of dicts (arbitrary experiment metadata, config, etc)
 
     Reading methods:
       - read_scalars(): list[dict] {step, name, value} for all scalar metrics
@@ -28,6 +33,7 @@ class Logger:
       - read_histograms(): list[dict] {step, name, values (np.ndarray)}
       - read_episode_averages(): list[dict] {episode, name, average, count}
       - read_scalar_steps(name): sorted list[(step, value)] for a given scalar
+      - read_json(): list[dict] for all JSON logs
 
     Example usage:
         logger = Logger(log_dir="logs/test_run")
@@ -36,12 +42,14 @@ class Logger:
         logger.log_scalars({"loss": 0.32, "epsilon": 0.13}, step=10)
         logger.log_histogram("weights", np.array([1,2,3]), step=10)
         logger.log_episode_average("reward", [1.0, 2.0, 3.0], episode=3)
+        logger.log_json({"config": {"lr": 1e-3, "batch_size": 32}})
         # Reading logged data:
         scalars = logger.read_scalars()
         returns = logger.read_episode_returns()
         histos = logger.read_histograms()
         avgs = logger.read_episode_averages()
         loss_steps = logger.read_scalar_steps("loss")
+        json_logs = logger.read_json()
     """
     def __init__(self, log_dir: str):
         """
@@ -56,6 +64,7 @@ class Logger:
         self.returns_path = os.path.join(log_dir, "episode_returns.csv")
         self.histogram_path = os.path.join(log_dir, "histograms.csv")
         self.episode_avg_path = os.path.join(log_dir, "episode_averages.csv")
+        self.json_path = os.path.join(log_dir, "logs.json")  # NEW
         self._init_all_files()
 
     def _init_all_files(self):
@@ -66,6 +75,7 @@ class Logger:
         self._init_csv_file(self.returns_path, ["episode", "return"])
         self._init_csv_file(self.histogram_path, ["step", "name", "values"])
         self._init_csv_file(self.episode_avg_path, ["episode", "name", "average", "count"])
+        self._init_json_file(self.json_path)
 
     def _init_csv_file(self, path: str, header: List[str]):
         """
@@ -78,6 +88,14 @@ class Logger:
             with open(path, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(header)
+
+    def _init_json_file(self, path: str):
+        """
+        Create JSON log file if not exists; initializes as empty list.
+        """
+        if not os.path.isfile(path):
+            with open(path, "w") as f:
+                json.dump([], f)
 
     # --- Scalar logging ---
     def log_scalar(self, name: str, value: float, step: int):
@@ -122,10 +140,10 @@ class Logger:
         Log a histogram (array metric) for a given step.
         Args:
             name (str): Metric name
-            values (np.ndarray): Array values
+            values (np.ndarray): Array of metric values
             step (int): Step index
         """
-        values_str = ",".join(str(v) for v in values.tolist())
+        values_str = ','.join(str(v) for v in values.tolist())
         with open(self.histogram_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([step, name, values_str])
@@ -133,10 +151,10 @@ class Logger:
     # --- Episode average logging ---
     def log_episode_average(self, name: str, values: List[float], episode: int):
         """
-        Log average of metric values for a given episode.
+        Log average of a metric for a given episode.
         Args:
             name (str): Metric name
-            values (list[float]): Metric values
+            values (List[float]): Values to average
             episode (int): Episode index
         """
         avg = float(np.mean(values)) if values else 0.0
@@ -145,12 +163,43 @@ class Logger:
             writer = csv.writer(f)
             writer.writerow([episode, name, self._format_value(avg), count])
 
+    # --- JSON logging ---
+    def log_json(self, obj: dict):
+        """
+        Log a dict of arbitrary metadata/config/events to logs.json.
+        Args:
+            obj (dict): Metadata/config/experiment info. Must be JSON serializable.
+        """
+        # Append to list in logs.json
+        # Read file, append, write back
+        try:
+            with open(self.json_path, "r") as f:
+                logs = json.load(f)
+        except Exception:
+            logs = []
+        logs.append(obj)
+        with open(self.json_path, "w") as f:
+            json.dump(logs, f, indent=2)
+
+    def read_json(self) -> List[dict]:
+        """
+        Read all JSON log entries (list of dicts).
+        Returns:
+            List[dict]: List of logged metadata/config/events.
+        """
+        try:
+            with open(self.json_path, "r") as f:
+                logs = json.load(f)
+            return logs
+        except Exception:
+            return []
+
     # --- Reading methods ---
     def read_scalars(self) -> List[Dict[str, Any]]:
         """
         Read all scalar metrics from scalars.csv.
         Returns:
-            list[dict]: [{step, name, value}, ...]
+            List[dict]: [{step, name, value}, ...]
         """
         out = []
         with open(self.scalar_path, "r") as f:
@@ -165,9 +214,9 @@ class Logger:
 
     def read_episode_returns(self) -> List[float]:
         """
-        Read all episode returns from episode_returns.csv.
+        Read episode returns from episode_returns.csv.
         Returns:
-            list[float]: episode returns
+            List[float]: List of episode returns.
         """
         out = []
         with open(self.returns_path, "r") as f:
@@ -178,27 +227,27 @@ class Logger:
 
     def read_histograms(self) -> List[Dict[str, Any]]:
         """
-        Read all histograms from histograms.csv.
+        Read all histogram metrics from histograms.csv.
         Returns:
-            list[dict]: [{step, name, values (np.ndarray)}, ...]
+            List[dict]: [{step, name, values (np.ndarray)}, ...]
         """
         out = []
         with open(self.histogram_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                arr = np.array([float(v) for v in row["values"].split(",")])
+                values = np.fromstring(row["values"], sep=',')
                 out.append({
                     "step": int(row["step"]),
                     "name": row["name"],
-                    "values": arr
+                    "values": values
                 })
         return out
 
     def read_episode_averages(self) -> List[Dict[str, Any]]:
         """
-        Read per-episode averages from episode_averages.csv.
+        Read episode averages from episode_averages.csv.
         Returns:
-            list[dict]: [{episode, name, average, count}, ...]
+            List[dict]: [{episode, name, average, count}, ...]
         """
         out = []
         with open(self.episode_avg_path, "r") as f:
@@ -214,11 +263,9 @@ class Logger:
 
     def read_scalar_steps(self, name: str) -> List[tuple]:
         """
-        Read (step, value) pairs for a given scalar metric, sorted by step.
-        Args:
-            name (str): Metric name
+        Read all steps and values for a given scalar metric name.
         Returns:
-            list[tuple]: [(step, value), ...] sorted by step
+            List[(step, value)]: sorted by step
         """
         pairs = []
         with open(self.scalar_path, "r") as f:
