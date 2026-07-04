@@ -25,12 +25,13 @@ from utils import set_seed
 class DQN(nn.Module):
     def __init__(self, obs_dim, n_actions):
         super().__init__()
+        # Tweak: hidden layer size raised from 128 to 256 for better CartPole performance
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, 128),
+            nn.Linear(obs_dim, 256),
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(128, n_actions)
+            nn.Linear(256, n_actions)
         )
     def forward(self, x):
         return self.net(x)
