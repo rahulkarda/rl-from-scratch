@@ -104,15 +104,15 @@ class ReplayBuffer:
         Args:
             batch_size (int): Number of transitions to return.
         Returns:
-            List[Transition]: List of the latest transitions (ordered: newest to oldest).
+            List[Transition]: List of the latest transitions (ordered: oldest to newest).
 
         Raises:
             ValueError: If batch_size > number of transitions in buffer.
         """
         if batch_size > len(self.buffer):
             raise ValueError(f"Cannot sample_recent batch_size={batch_size} from buffer with {len(self.buffer)} transitions.")
-        # Return most recent N transitions, ordered newest to oldest
-        return list(self.buffer)[-batch_size:][::-1]
+        # Return most recent N transitions, ordered: oldest to newest
+        return list(self.buffer)[-batch_size:]
 
     def export_to_list(self) -> List[Transition]:
         """
