@@ -1,14 +1,17 @@
+import numpy as np
 from utils import compute_reward_stats, compute_quantiles
 
-# Example reward returns for an RL agent
-returns = [10, 15, 22, 9, 17, 30, 11, 12, 21]
-
-stats = compute_reward_stats(returns)
-print("Reward stats:")
-for k, v in stats.items():
-    print(f"  {k}: {v}")
-
-quantiles = compute_quantiles(returns, qs=[0.0, 0.5, 0.9, 1.0])
-print("Quantiles:")
-for q, val in quantiles.items():
-    print(f"  q={q:.2f}: {val}")
+# --- Minimal example: reward stats and quantiles ---
+if __name__ == "__main__":
+    rewards = [10, 12, 9, 16, 8, 14, 15]
+    # Compute stats
+    stats = compute_reward_stats(rewards)
+    print("Reward stats:", stats)
+    # Compute quantiles
+    quantiles = compute_quantiles(rewards, qs=[0.0, 0.25, 0.5, 0.75, 1.0])
+    print("Reward quantiles:", quantiles)
+    # Edge case: empty input
+    empty_stats = compute_reward_stats([])
+    empty_quantiles = compute_quantiles([], qs=[0.5])
+    print("Empty stats:", empty_stats)
+    print("Empty quantile:", empty_quantiles)
