@@ -17,7 +17,7 @@
     - [x] Comparison with uniform replay
 
 ## Phase 3: policy-gradient
-- [ ] REINFORCE on CartPole
+- [x] REINFORCE on CartPole
 - [ ] A2C with shared trunk
 - [ ] PPO clipped objective
 - [ ] GAE for advantage estimation
@@ -30,4 +30,3 @@
 - [ ] Reward-curve plots across algorithms on the same env
 - [ ] Wall-clock vs sample-efficiency comparison
 - [ ] Notebook write-up
-
