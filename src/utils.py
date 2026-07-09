@@ -12,6 +12,7 @@ Purpose:
 - compute_reward_stats: Summarize reward distributions
 - compute_quantiles: Extract arbitrary quantiles
 - compute_median: Median utility for reward stats
+- min_max_normalize: Scale array to [0, 1] (NEW)
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -164,15 +165,14 @@ def compute_reward_stats(returns):
         'median': float(np.median(arr))
     }
 
-# === Quantile Extraction ===
 def compute_quantiles(values, qs):
     """
     Compute arbitrary quantiles from values.
     Args:
         values: sequence
-        qs: quantile values in [0,1]
+        qs: list/tuple of quantile floats (e.g. [0.25, 0.5, 0.75])
     Returns:
-        dict: {q: quantile_value, ...}
+        dict: {quantile: value}
     """
     arr = np.array(values, dtype=float)
     if arr.size == 0:
@@ -193,3 +193,22 @@ def compute_median(values):
     if arr.size == 0:
         return 0.0
     return float(np.median(arr))
+
+# === Min-Max Normalize ===
+def min_max_normalize(values):
+    """
+    Scale values to [0, 1] by min-max normalization.
+    Args:
+        values: sequence
+    Returns:
+        np.ndarray: normalized array (empty if input empty)
+    """
+    arr = np.array(values, dtype=float)
+    if arr.size == 0:
+        return np.array([])
+    min_val = arr.min()
+    max_val = arr.max()
+    if min_val == max_val:
+        # Avoid division by zero; return zeros
+        return np.zeros_like(arr)
+    return (arr - min_val) / (max_val - min_val)
