@@ -156,34 +156,34 @@ def compute_reward_stats(returns):
     """
     arr = np.array(returns, dtype=float)
     if arr.size == 0:
-        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'median': 0.0}
+        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0}
     return {
-        'mean': float(np.mean(arr)),
-        'std': float(np.std(arr)),
-        'min': float(np.min(arr)),
-        'max': float(np.max(arr)),
-        'median': float(np.median(arr))
+        "mean": float(np.mean(arr)),
+        "std": float(np.std(arr)),
+        "min": float(np.min(arr)),
+        "max": float(np.max(arr)),
+        "median": float(np.median(arr)),
     }
 
-def compute_quantiles(values, qs):
+
+def compute_quantiles(values, quantiles):
     """
     Compute arbitrary quantiles from values.
     Args:
         values: sequence
-        qs: list/tuple of quantile floats (e.g. [0.25, 0.5, 0.75])
+        quantiles: sequence of quantile floats [0, 1]
     Returns:
-        dict: {quantile: value}
+        np.ndarray: quantiles (same length as quantiles)
     """
     arr = np.array(values, dtype=float)
     if arr.size == 0:
-        return {q: 0.0 for q in qs}
-    quantile_vals = np.quantile(arr, qs)
-    return {float(q): float(v) for q, v in zip(qs, quantile_vals)}
+        return np.zeros(len(quantiles))
+    return np.quantile(arr, quantiles)
 
-# === Median Utility ===
+
 def compute_median(values):
     """
-    Compute median of values, returns 0.0 if empty.
+    Compute median value from a sequence.
     Args:
         values: sequence
     Returns:
@@ -194,14 +194,18 @@ def compute_median(values):
         return 0.0
     return float(np.median(arr))
 
-# === Min-Max Normalize ===
+
 def min_max_normalize(values):
     """
     Scale values to [0, 1] by min-max normalization.
     Args:
-        values: sequence
+        values: sequence of numbers (e.g., rewards, losses, or other metrics).
     Returns:
-        np.ndarray: normalized array (empty if input empty)
+        np.ndarray: normalized array in [0, 1] (empty if input empty).
+    Notes:
+        - If all input values are identical, returns zeros.
+        - Handles empty input gracefully (returns empty array).
+        - Useful for plotting normalized curves or scaling metrics.
     """
     arr = np.array(values, dtype=float)
     if arr.size == 0:
