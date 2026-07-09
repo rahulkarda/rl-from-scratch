@@ -19,7 +19,7 @@
 ## Phase 3: policy-gradient
 - [x] REINFORCE on CartPole
 - [x] A2C with shared trunk
-- [ ] PPO clipped objective
+- [x] PPO clipped objective
 - [ ] GAE for advantage estimation
 
 ## Phase 4: continuous control
