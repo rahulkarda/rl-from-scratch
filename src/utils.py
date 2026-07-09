@@ -13,6 +13,7 @@ Purpose:
 - compute_quantiles: Extract arbitrary quantiles
 - compute_median: Median utility for reward stats
 - min_max_normalize: Scale array to [0, 1] (NEW)
+- compute_gae_advantages: Generalized Advantage Estimation (NEW)
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -156,52 +157,51 @@ def compute_reward_stats(returns):
     """
     arr = np.array(returns, dtype=float)
     if arr.size == 0:
-        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0}
+        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'median': 0.0}
     return {
-        "mean": float(np.mean(arr)),
-        "std": float(np.std(arr)),
-        "min": float(np.min(arr)),
-        "max": float(np.max(arr)),
-        "median": float(np.median(arr)),
+        'mean': arr.mean(),
+        'std': arr.std(),
+        'min': arr.min(),
+        'max': arr.max(),
+        'median': compute_median(arr)
     }
-
 
 def compute_quantiles(values, quantiles):
     """
-    Compute arbitrary quantiles from values.
+    Compute arbitrary quantiles for a sequence.
     Args:
         values: sequence
-        quantiles: sequence of quantile floats [0, 1]
+        quantiles: list or array of quantile floats [0,1]
     Returns:
-        np.ndarray: quantiles (same length as quantiles)
+        np.ndarray: quantile values
     """
-    arr = np.array(values, dtype=float)
-    if arr.size == 0:
-        return np.zeros(len(quantiles))
-    return np.quantile(arr, quantiles)
-
+    values = np.array(values, dtype=float)
+    quantiles = np.array(quantiles, dtype=float)
+    if values.size == 0:
+        return np.zeros_like(quantiles)
+    return np.quantile(values, quantiles)
 
 def compute_median(values):
     """
-    Compute median value from a sequence.
+    Compute median value for a sequence.
     Args:
         values: sequence
     Returns:
         float: median value
     """
-    arr = np.array(values, dtype=float)
-    if arr.size == 0:
+    values = np.array(values, dtype=float)
+    if values.size == 0:
         return 0.0
-    return float(np.median(arr))
+    return float(np.median(values))
 
-
+# === Normalization ===
 def min_max_normalize(values):
     """
-    Scale values to [0, 1] by min-max normalization.
+    Scale array to [0, 1] using min/max normalization.
     Args:
-        values: sequence of numbers (e.g., rewards, losses, or other metrics).
+        values: sequence
     Returns:
-        np.ndarray: normalized array in [0, 1] (empty if input empty).
+        np.ndarray: normalized array [0, 1]
     Notes:
         - If all input values are identical, returns zeros.
         - Handles empty input gracefully (returns empty array).
@@ -216,3 +216,36 @@ def min_max_normalize(values):
         # Avoid division by zero; return zeros
         return np.zeros_like(arr)
     return (arr - min_val) / (max_val - min_val)
+
+# === GAE Advantage Estimation ===
+def compute_gae_advantages(rewards, values, dones, gamma: float, lam: float):
+    """
+    Compute Generalized Advantage Estimation (GAE) for a trajectory.
+    Args:
+        rewards: sequence of rewards (length T)
+        values: sequence of state values (length T+1 or T)
+        dones: sequence of terminal flags (length T)
+        gamma (float): discount factor
+        lam (float): GAE lambda (0 = TD, 1 = MC)
+    Returns:
+        np.ndarray: advantages (length T)
+    Notes:
+        - values can be shape (T+1,) or (T,); if (T,), assumes last value is zero (terminal).
+        - Handles episode termination via dones.
+        - Rewards, values, dones are converted to arrays internally.
+    """
+    rewards = np.array(rewards, dtype=float)
+    values = np.array(values, dtype=float)
+    dones = np.array(dones, dtype=bool)
+    T = len(rewards)
+    if values.shape[0] == T:
+        # pad with zero for terminal
+        values = np.append(values, 0.0)
+    advantages = np.zeros(T, dtype=float)
+    gae = 0.0
+    for t in reversed(range(T)):
+        next_value = values[t+1]
+        delta = rewards[t] + gamma * next_value * (not dones[t]) - values[t]
+        gae = delta + gamma * lam * gae * (not dones[t])
+        advantages[t] = gae
+    return advantages

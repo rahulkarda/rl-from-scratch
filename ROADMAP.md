@@ -20,7 +20,7 @@
 - [x] REINFORCE on CartPole
 - [x] A2C with shared trunk
 - [x] PPO clipped objective
-- [ ] GAE for advantage estimation
+- [x] GAE for advantage estimation
 
 ## Phase 4: continuous control
 - [ ] DDPG on Pendulum
