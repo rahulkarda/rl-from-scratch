@@ -130,17 +130,22 @@ def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) ->
     """
     Flatten nested dicts using dot notation.
     Args:
-        d: nested dict or mapping
-        parent_key: prefix
-        sep: separator
+        d (dict or Mapping): nested dict or mapping to flatten
+        parent_key (str): prefix for keys (internal use)
+        sep (str): separator (default '.')
     Returns:
-        dict: flat dict
+        dict: flat dict with keys representing path in original dict
+    Example:
+        flatten_dict({'a': {'b': 1}, 'c': 2}) -> {'a.b': 1, 'c': 2}
+    Notes:
+        Only recursively flattens items of type dict (not generic Mapping).
+        This avoids flattening e.g. defaultdict or custom mapping types that may not be true dicts.
     """
     items = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        # Only recursively flatten if v is a dict (not generic Mapping)
         if isinstance(v, dict):
+            # Recursively flatten only if v is a dict (not generic Mapping)
             items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
@@ -155,35 +160,37 @@ def compute_reward_stats(returns):
     Returns:
         dict: {'mean', 'std', 'min', 'max', 'median'}
     """
-    arr = np.array(returns, dtype=float)
-    if arr.size == 0:
+    returns = np.array(returns, dtype=float)
+    if returns.size == 0:
         return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'median': 0.0}
     return {
-        'mean': arr.mean(),
-        'std': arr.std(),
-        'min': arr.min(),
-        'max': arr.max(),
-        'median': compute_median(arr)
+        'mean': float(np.mean(returns)),
+        'std': float(np.std(returns)),
+        'min': float(np.min(returns)),
+        'max': float(np.max(returns)),
+        'median': float(np.median(returns))
     }
+
 
 def compute_quantiles(values, quantiles):
     """
-    Compute arbitrary quantiles for a sequence.
+    Compute arbitrary quantiles for a list/array.
     Args:
         values: sequence
-        quantiles: list or array of quantile floats [0,1]
+        quantiles: list of quantile values (e.g., [0.25, 0.5, 0.75])
     Returns:
-        np.ndarray: quantile values
+        dict: {q: value}
     """
     values = np.array(values, dtype=float)
-    quantiles = np.array(quantiles, dtype=float)
     if values.size == 0:
-        return np.zeros_like(quantiles)
-    return np.quantile(values, quantiles)
+        return {q: 0.0 for q in quantiles}
+    qs = np.quantile(values, quantiles)
+    return {float(q): float(v) for q, v in zip(quantiles, qs)}
+
 
 def compute_median(values):
     """
-    Compute median value for a sequence.
+    Compute median for a sequence.
     Args:
         values: sequence
     Returns:
@@ -194,45 +201,36 @@ def compute_median(values):
         return 0.0
     return float(np.median(values))
 
-# === Normalization ===
+# === Min-Max Normalize ===
 def min_max_normalize(values):
     """
-    Scale array to [0, 1] using min/max normalization.
+    Scale values to [0, 1] via min-max normalization.
     Args:
         values: sequence
     Returns:
-        np.ndarray: normalized array [0, 1]
-    Notes:
-        - If all input values are identical, returns zeros.
-        - Handles empty input gracefully (returns empty array).
-        - Useful for plotting normalized curves or scaling metrics.
+        np.ndarray: scaled array
     """
-    arr = np.array(values, dtype=float)
-    if arr.size == 0:
+    values = np.array(values, dtype=float)
+    if values.size == 0:
         return np.array([])
-    min_val = arr.min()
-    max_val = arr.max()
-    if min_val == max_val:
-        # Avoid division by zero; return zeros
-        return np.zeros_like(arr)
-    return (arr - min_val) / (max_val - min_val)
+    vmin = np.min(values)
+    vmax = np.max(values)
+    if vmax == vmin:
+        return np.zeros_like(values)
+    return (values - vmin) / (vmax - vmin)
 
 # === GAE Advantage Estimation ===
 def compute_gae_advantages(rewards, values, dones, gamma: float, lam: float):
     """
-    Compute Generalized Advantage Estimation (GAE) for a trajectory.
+    Compute Generalized Advantage Estimation (GAE).
     Args:
-        rewards: sequence of rewards (length T)
-        values: sequence of state values (length T+1 or T)
-        dones: sequence of terminal flags (length T)
-        gamma (float): discount factor
-        lam (float): GAE lambda (0 = TD, 1 = MC)
+        rewards: sequence (length T)
+        values: sequence (length T or T+1)
+        dones: sequence (length T), boolean
+        gamma: discount factor
+        lam: GAE lambda
     Returns:
         np.ndarray: advantages (length T)
-    Notes:
-        - values can be shape (T+1,) or (T,); if (T,), assumes last value is zero (terminal).
-        - Handles episode termination via dones.
-        - Rewards, values, dones are converted to arrays internally.
     """
     rewards = np.array(rewards, dtype=float)
     values = np.array(values, dtype=float)
