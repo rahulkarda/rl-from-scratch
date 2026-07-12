@@ -15,6 +15,9 @@ Usage:
     buf.clear()             # Removes all transitions
     recent = buf.sample_recent(10)  # Returns most recent 10 transitions
     all_transitions = buf.export_to_list()  # List of all transitions
+    # NEW:
+    for batch in buf.random_batch_iter(batch_size=32):
+        ... # iterates over random minibatches (non-overlapping)
 
 Serialization:
 - .save(path): Pickles a list of transition dicts (not raw objects), so the file is portable and readable.
@@ -26,7 +29,7 @@ Serialization:
 import random
 from collections import deque
 from dataclasses import dataclass, asdict
-from typing import Any, Deque, List
+from typing import Any, Deque, List, Iterator
 import pickle
 
 @dataclass
@@ -53,6 +56,8 @@ class ReplayBuffer:
         buf.clear()
         recent = buf.sample_recent(10)
         all_transitions = buf.export_to_list()
+        for batch in buf.random_batch_iter(batch_size=32):
+            ... # iterates over random minibatches
 
     Limitations:
         - Only supports uniform sampling (no prioritization).
@@ -163,3 +168,26 @@ class ReplayBuffer:
         Remove all transitions from the buffer, emptying it.
         """
         self.buffer.clear()
+
+    def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
+        """
+        Iterate over random non-overlapping minibatches from the buffer.
+        Each batch is randomly drawn without replacement from the current buffer contents.
+        If total transitions are not divisible by batch_size, the last batch will be smaller.
+
+        Args:
+            batch_size (int): Number of transitions per batch.
+        Yields:
+            List[Transition]: Random batch of transitions.
+        """
+        n = len(self.buffer)
+        if batch_size < 1:
+            raise ValueError("batch_size must be >= 1")
+        if n == 0:
+            return
+        indices = list(range(n))
+        random.shuffle(indices)
+        for i in range(0, n, batch_size):
+            batch_indices = indices[i:i+batch_size]
+            batch = [list(self.buffer)[j] for j in batch_indices]
+            yield batch
