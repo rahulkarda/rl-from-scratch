@@ -11,7 +11,7 @@ Usage:
     buf.push(Transition(...))
     batch = buf.sample(batch_size=32)
     buf.save('buffer.pkl')  # Stores buffer as a list of dicts
-    buf.load('buffer.pkl')  # Loads buffer from dicts, reconstructs Transition objects
+    buf.load('buffer.pkl')  # Loads buffer from dicts, reconstructs Transition dataclass (order preserved)
     buf.clear()             # Removes all transitions
     recent = buf.sample_recent(10)  # Returns most recent 10 transitions
     all_transitions = buf.export_to_list()  # List of all transitions
@@ -130,64 +130,65 @@ class ReplayBuffer:
         return list(self.buffer)
 
     def __len__(self) -> int:
-        """
-        Returns the current number of transitions stored.
-
-        Returns:
-            int: Number of transitions in the buffer.
-        """
         return len(self.buffer)
+
+    def clear(self) -> None:
+        """
+        Remove all transitions from the buffer.
+        """
+        self.buffer.clear()
 
     def save(self, path: str) -> None:
         """
-        Serialize buffer to disk as a list of transition dicts.
+        Save buffer to a file as a list of dicts (not raw objects).
+
         Args:
             path (str): File path to save buffer.
         """
-        items = [asdict(t) for t in self.buffer]
-        with open(path, 'wb') as f:
-            pickle.dump(items, f)
+        # Convert Transition objects to dicts for portability
+        dicts = [asdict(t) for t in self.buffer]
+        with open(path, "wb") as f:
+            pickle.dump(dicts, f)
 
     def load(self, path: str) -> None:
         """
-        Load buffer from disk, reconstructing Transition objects.
-        Reads transition dicts and reconstructs Transition objects (order preserved).
+        Load buffer from a file containing a list of dicts.
 
         Args:
             path (str): File path to load buffer from.
         """
-        with open(path, 'rb') as f:
-            items = pickle.load(f)
-        self.buffer.clear()
-        for item in items:
-            t = Transition(**item)
-            self.buffer.append(t)
-
-    def clear(self) -> None:
-        """
-        Remove all transitions from the buffer, emptying it.
-        """
-        self.buffer.clear()
+        with open(path, "rb") as f:
+            dicts = pickle.load(f)
+        self.clear()
+        for t_dict in dicts:
+            t = Transition(**t_dict)
+            self.push(t)
 
     def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
         """
-        Iterate over random non-overlapping minibatches from the buffer.
-        Each batch is randomly drawn without replacement from the current buffer contents.
-        If total transitions are not divisible by batch_size, the last batch will be smaller.
+        Iterate over random, non-overlapping minibatches from the buffer.
+        Each batch is sampled without replacement from the current buffer contents.
 
         Args:
             batch_size (int): Number of transitions per batch.
         Yields:
             List[Transition]: Random batch of transitions.
+
+        Notes:
+            - Each transition is used at most once per call to this iterator.
+            - If buffer size is not divisible by batch_size, the last batch may be smaller.
+            - Shuffles indices prior to batching for randomness.
         """
-        n = len(self.buffer)
+        num_transitions = len(self.buffer)
         if batch_size < 1:
             raise ValueError("batch_size must be >= 1")
-        if n == 0:
+        if num_transitions == 0:
             return
-        indices = list(range(n))
+        indices = list(range(num_transitions))
         random.shuffle(indices)
-        for i in range(0, n, batch_size):
-            batch_indices = indices[i:i+batch_size]
-            batch = [list(self.buffer)[j] for j in batch_indices]
+        buffer_list = list(self.buffer)  # Avoid repeated conversion inside loop
+        for start in range(0, num_transitions, batch_size):
+            end = start + batch_size
+            batch_indices = indices[start:end]
+            batch = [buffer_list[j] for j in batch_indices]
             yield batch
