@@ -15,6 +15,7 @@ Purpose:
 - min_max_normalize: Scale array to [0, 1] (NEW)
 - compute_gae_advantages: Generalized Advantage Estimation (NEW)
 - chunked: Split sequence into fixed-size batches (NEW)
+- exponential_moving_average: Exponential smoothing for reward/loss curves (NEW)
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -114,6 +115,27 @@ def moving_std(values, window_size: int):
         out[i] = np.std(values[i:i+window_size])
     return out
 
+# === Exponential Moving Average ===
+def exponential_moving_average(values, alpha: float):
+    """
+    Compute exponential moving average (EMA) for a sequence.
+    Args:
+        values: sequence of numbers
+        alpha: smoothing factor (0 < alpha <= 1), higher is less smoothing
+    Returns:
+        np.ndarray: exponential moving average (same length)
+    """
+    values = np.array(values, dtype=float)
+    if values.size == 0:
+        return np.array([])
+    if not (0 < alpha <= 1):
+        raise ValueError("alpha must be in (0, 1]")
+    ema = np.empty_like(values)
+    ema[0] = values[0]
+    for i in range(1, len(values)):
+        ema[i] = alpha * values[i] + (1 - alpha) * ema[i - 1]
+    return ema
+
 # === Polyak Averaging ===
 def soft_update(target_net, source_net, tau: float):
     """
@@ -151,113 +173,107 @@ def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) ->
             items.append((new_key, v))
     return dict(items)
 
-# === Reward stats ===
+# === Reward Stats ===
 def compute_reward_stats(rewards):
     """
-    Compute mean, std, min, max, median of reward sequence.
+    Compute summary stats for reward sequence.
     Args:
-        rewards: sequence of reward values
+        rewards: sequence of rewards
     Returns:
-        dict: {mean, std, min, max, median}
+        dict: mean, std, min, max, median
     """
-    arr = np.array(rewards, dtype=float)
-    if arr.size == 0:
+    rewards = np.array(rewards, dtype=float)
+    if rewards.size == 0:
         return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0}
     return {
-        "mean": np.mean(arr),
-        "std": np.std(arr),
-        "min": np.min(arr),
-        "max": np.max(arr),
-        "median": np.median(arr)
+        "mean": np.mean(rewards),
+        "std": np.std(rewards),
+        "min": np.min(rewards),
+        "max": np.max(rewards),
+        "median": np.median(rewards)
     }
-
 
 def compute_quantiles(values, quantiles):
     """
     Compute arbitrary quantiles for a sequence.
     Args:
         values: sequence of numbers
-        quantiles: sequence of float in [0,1]
+        quantiles: sequence of quantile floats in [0, 1]
     Returns:
-        dict: {q: value} for each quantile
+        dict: {q: value}
     """
-    arr = np.array(values, dtype=float)
-    if arr.size == 0:
+    values = np.array(values, dtype=float)
+    if values.size == 0:
         return {q: 0.0 for q in quantiles}
-    return {q: float(np.quantile(arr, q)) for q in quantiles}
+    q_vals = np.quantile(values, quantiles)
+    return {float(q): float(val) for q, val in zip(quantiles, q_vals)}
 
 
 def compute_median(values):
     """
-    Compute median of a sequence.
+    Compute median for a sequence.
     Args:
         values: sequence
     Returns:
         float: median value
     """
-    arr = np.array(values, dtype=float)
-    if arr.size == 0:
+    values = np.array(values, dtype=float)
+    if values.size == 0:
         return 0.0
-    return float(np.median(arr))
+    return float(np.median(values))
 
-# === Array min/max normalization ===
+# === Min-Max Normalization ===
 def min_max_normalize(values):
     """
-    Scale array to [0, 1] using min/max normalization.
+    Scale array to [0, 1] using min/max.
     Args:
         values: sequence
     Returns:
-        np.ndarray: normalized array
+        np.ndarray: normalized to [0, 1]
     """
-    arr = np.array(values, dtype=float)
-    if arr.size == 0:
+    values = np.array(values, dtype=float)
+    if values.size == 0:
         return np.array([])
-    minv = np.min(arr)
-    maxv = np.max(arr)
-    if maxv == minv:
-        return np.zeros_like(arr)
-    return (arr - minv) / (maxv - minv)
+    v_min = np.min(values)
+    v_max = np.max(values)
+    if v_max == v_min:
+        return np.zeros_like(values)
+    return (values - v_min) / (v_max - v_min)
 
-# === GAE advantage estimation ===
-def compute_gae_advantages(rewards, values, dones, gamma: float, lam: float):
+# === GAE ===
+def compute_gae_advantages(rewards, values, next_values, dones, gamma=0.99, lam=0.95):
     """
-    Generalized Advantage Estimation (GAE) for policy-gradient methods.
+    Compute Generalized Advantage Estimation (GAE) for policy gradient methods.
     Args:
-        rewards: sequence of rewards (len = T)
-        values: sequence of value estimates (len = T or T+1)
-        dones: sequence of episode done flags (len = T)
-        gamma (float): discount factor
-        lam (float): GAE lambda parameter
+        rewards: np.ndarray, shape (N,)
+        values: np.ndarray, shape (N,)
+        next_values: np.ndarray, shape (N,)
+        dones: np.ndarray, shape (N,) (bool)
+        gamma: discount factor
+        lam: GAE lambda
     Returns:
-        np.ndarray: advantage estimates (len = T)
+        np.ndarray: GAE advantages, shape (N,)
     """
     rewards = np.array(rewards, dtype=float)
     values = np.array(values, dtype=float)
+    next_values = np.array(next_values, dtype=float)
     dones = np.array(dones, dtype=bool)
-    T = len(rewards)
-    if values.shape[0] == T:
-        # pad with zero for terminal
-        values = np.append(values, 0.0)
-    advantages = np.zeros(T, dtype=float)
-    gae = 0.0
-    for t in reversed(range(T)):
-        next_value = values[t+1]
-        delta = rewards[t] + gamma * next_value * (not dones[t]) - values[t]
-        gae = delta + gamma * lam * gae * (not dones[t])
-        advantages[t] = gae
-    return advantages
+    adv = np.zeros_like(rewards)
+    last_gae = 0.0
+    for t in reversed(range(len(rewards))):
+        delta = rewards[t] + gamma * next_values[t] * (not dones[t]) - values[t]
+        adv[t] = last_gae = delta + gamma * lam * (not dones[t]) * last_gae
+    return adv
 
-# === Sequence chunking utility ===
-def chunked(iterable, batch_size):
+# === Chunked Batching ===
+def chunked(iterable, batch_size: int):
     """
-    Split an iterable or sequence into batches of size batch_size.
+    Yield batches of batch_size from iterable.
     Args:
-        iterable: sequence or iterable
-        batch_size (int): batch size (>0)
+        iterable: sequence or iterator
+        batch_size: int
     Yields:
-        list: next batch (length=batch_size, except final batch)
-    Example:
-        list(chunked([1,2,3,4,5], 2)) -> [[1,2], [3,4], [5]]
+        list: batch_size elements each (last may be smaller)
     """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
