@@ -23,9 +23,13 @@ class EpsilonGreedyExplorer:
     def epsilon(self) -> float:
         """
         Current epsilon decayed linearly as steps increase.
+        Returns:
+            float: Current epsilon value.
         """
-        decay_ratio = min(self.steps_done / self.epsilon_decay, 1.0)
-        return float(self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio))
+        if self.epsilon_decay <= 0:
+            return float(self.epsilon_final)
+        progress = min(self.steps_done / self.epsilon_decay, 1.0)
+        return float(self.epsilon_start * (1.0 - progress) + self.epsilon_final * progress)
 
     # --- Action selectors ---
     def select_action(self, q_values: np.ndarray | list) -> int:
@@ -90,13 +94,20 @@ class EpsilonGreedyExplorer:
     # --- Schedule utilities ---
     def get_epsilon_schedule(self, max_steps: int = None) -> np.ndarray:
         """
-        Array of epsilon values over steps (for plotting).
+        Compute array of epsilon values over steps (for plotting).
+        Args:
+            max_steps (int, optional): Number of steps to compute. Defaults to epsilon_decay if not given.
+        Returns:
+            np.ndarray: Epsilon value at each step [0, max_steps).
         """
         if max_steps is None:
             max_steps = self.epsilon_decay
+        if max_steps <= 0:
+            return np.full(1, self.epsilon_final)
         steps = np.arange(max_steps)
-        decay_ratio = np.minimum(steps / self.epsilon_decay, 1.0)
-        return self.epsilon_final + (self.epsilon_start - self.epsilon_final) * (1.0 - decay_ratio)
+        progress = np.minimum(steps / self.epsilon_decay, 1.0)
+        schedule = self.epsilon_start * (1.0 - progress) + self.epsilon_final * progress
+        return schedule
 
     # --- Save/load ---
     def save(self, path: str) -> None:
