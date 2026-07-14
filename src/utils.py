@@ -93,7 +93,9 @@ def moving_average(values, window_size: int):
         np.ndarray: averaged array (len = len(values) - window_size + 1)
     """
     values = np.array(values, dtype=float)
-    if values.size < window_size or window_size < 1:
+    if values.size == 0 or window_size < 1:
+        return np.array([])
+    if window_size > values.size:
         return np.array([])
     return np.convolve(values, np.ones(window_size), 'valid') / window_size
 
@@ -108,7 +110,9 @@ def moving_std(values, window_size: int):
         np.ndarray: std array (len = len(values) - window_size + 1)
     """
     values = np.array(values, dtype=float)
-    if values.size < window_size or window_size < 1:
+    if values.size == 0 or window_size < 1:
+        return np.array([])
+    if window_size > values.size:
         return np.array([])
     out = np.empty(values.size - window_size + 1)
     for i in range(out.size):
@@ -149,20 +153,15 @@ def soft_update(target_net, source_net, tau: float):
         t_param.data.copy_(tau * s_param.data + (1.0 - tau) * t_param.data)
 
 # === Dict Flattening ===
-def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) -> {'a.b': 1}
+def flatten_dict(d, parent_key='', sep='.'):
     """
-    Flatten nested dicts using dot notation.
+    Flatten nested dicts for logging/CSV.
     Args:
-        d (dict or Mapping): nested dict or mapping to flatten
-        parent_key (str): prefix for keys (internal use)
-        sep (str): separator (default '.')
+        d: dict (possibly nested)
+        parent_key: prefix for keys
+        sep: separator
     Returns:
-        dict: flat dict with keys representing path in original dict
-    Example:
-        flatten_dict({'a': {'b': 1}, 'c': 2}) -> {'a.b': 1, 'c': 2}
-    Notes:
-        Only recursively flattens items of type dict (not generic Mapping).
-        This avoids flattening e.g. defaultdict or custom mapping types that may not be true dicts.
+        flat dict
     """
     items = []
     for k, v in d.items():
@@ -173,40 +172,39 @@ def flatten_dict(d, parent_key='', sep='.'):  # flatten_dict({'a': {'b': 1}}) ->
             items.append((new_key, v))
     return dict(items)
 
-# === Reward Stats ===
+# === Reward Statistics ===
 def compute_reward_stats(rewards):
     """
-    Compute summary stats for reward sequence.
+    Compute mean, std, min, max for a reward sequence.
     Args:
-        rewards: sequence of rewards
+        rewards: sequence
     Returns:
-        dict: mean, std, min, max, median
+        dict: {mean, std, min, max}
     """
     rewards = np.array(rewards, dtype=float)
     if rewards.size == 0:
-        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0}
+        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
     return {
-        "mean": np.mean(rewards),
-        "std": np.std(rewards),
-        "min": np.min(rewards),
-        "max": np.max(rewards),
-        "median": np.median(rewards)
+        'mean': np.mean(rewards),
+        'std': np.std(rewards),
+        'min': np.min(rewards),
+        'max': np.max(rewards)
     }
 
+# === Quantile Utilities ===
 def compute_quantiles(values, quantiles):
     """
-    Compute arbitrary quantiles for a sequence.
+    Compute arbitrary quantiles from a sequence.
     Args:
-        values: sequence of numbers
-        quantiles: sequence of quantile floats in [0, 1]
+        values: sequence
+        quantiles: list of quantile floats (0-1)
     Returns:
-        dict: {q: value}
+        np.ndarray: quantile values
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
-        return {q: 0.0 for q in quantiles}
-    q_vals = np.quantile(values, quantiles)
-    return {float(q): float(val) for q, val in zip(quantiles, q_vals)}
+        return np.array([])
+    return np.quantile(values, quantiles)
 
 
 def compute_median(values):
@@ -215,7 +213,7 @@ def compute_median(values):
     Args:
         values: sequence
     Returns:
-        float: median value
+        float: median
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
@@ -223,57 +221,58 @@ def compute_median(values):
     return float(np.median(values))
 
 # === Min-Max Normalization ===
-def min_max_normalize(values):
+def min_max_normalize(arr):
     """
-    Scale array to [0, 1] using min/max.
+    Scale array to [0, 1] range.
     Args:
-        values: sequence
+        arr: sequence
     Returns:
-        np.ndarray: normalized to [0, 1]
+        np.ndarray: normalized array
     """
-    values = np.array(values, dtype=float)
-    if values.size == 0:
+    arr = np.array(arr, dtype=float)
+    if arr.size == 0:
         return np.array([])
-    v_min = np.min(values)
-    v_max = np.max(values)
-    if v_max == v_min:
-        return np.zeros_like(values)
-    return (values - v_min) / (v_max - v_min)
+    min_val = np.min(arr)
+    max_val = np.max(arr)
+    if min_val == max_val:
+        return np.zeros_like(arr)
+    return (arr - min_val) / (max_val - min_val)
 
-# === GAE ===
+# === GAE Advantage Estimation ===
 def compute_gae_advantages(rewards, values, next_values, dones, gamma=0.99, lam=0.95):
     """
-    Compute Generalized Advantage Estimation (GAE) for policy gradient methods.
+    Generalized Advantage Estimation (GAE-Lambda).
     Args:
-        rewards: np.ndarray, shape (N,)
-        values: np.ndarray, shape (N,)
-        next_values: np.ndarray, shape (N,)
-        dones: np.ndarray, shape (N,) (bool)
-        gamma: discount factor
-        lam: GAE lambda
+        rewards: [N,]
+        values: [N,]
+        next_values: [N,]
+        dones: [N,], bool/int
+        gamma: discount
+        lam: lambda parameter
     Returns:
-        np.ndarray: GAE advantages, shape (N,)
+        np.ndarray: advantages [N,]
     """
     rewards = np.array(rewards, dtype=float)
     values = np.array(values, dtype=float)
     next_values = np.array(next_values, dtype=float)
     dones = np.array(dones, dtype=bool)
-    adv = np.zeros_like(rewards)
-    last_gae = 0.0
-    for t in reversed(range(len(rewards))):
-        delta = rewards[t] + gamma * next_values[t] * (not dones[t]) - values[t]
-        adv[t] = last_gae = delta + gamma * lam * (not dones[t]) * last_gae
-    return adv
+    N = len(rewards)
+    advantages = np.zeros(N, dtype=float)
+    last_adv = 0.0
+    for t in reversed(range(N)):
+        delta = rewards[t] + gamma * next_values[t] * (1 - dones[t]) - values[t]
+        advantages[t] = last_adv = delta + gamma * lam * (1 - dones[t]) * last_adv
+    return advantages
 
-# === Chunked Batching ===
+# === Chunking Utility ===
 def chunked(iterable, batch_size: int):
     """
-    Yield batches of batch_size from iterable.
+    Yield successive batches of size batch_size from iterable.
     Args:
-        iterable: sequence or iterator
-        batch_size: int
+        iterable: sequence or iterable
+        batch_size: batch size
     Yields:
-        list: batch_size elements each (last may be smaller)
+        list: batch
     """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
