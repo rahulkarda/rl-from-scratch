@@ -16,6 +16,7 @@ Purpose:
 - compute_gae_advantages: Generalized Advantage Estimation (NEW)
 - chunked: Split sequence into fixed-size batches (NEW)
 - exponential_moving_average: Exponential smoothing for reward/loss curves (NEW)
+- compute_discounted_sum: Compute discounted sum over a sequence (NEW)
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -152,16 +153,16 @@ def soft_update(target_net, source_net, tau: float):
     for t_param, s_param in zip(target_net.parameters(), source_net.parameters()):
         t_param.data.copy_(tau * s_param.data + (1.0 - tau) * t_param.data)
 
-# === Dict Flattening ===
+# === Dict flattening ===
 def flatten_dict(d, parent_key='', sep='.'):
     """
-    Flatten nested dicts for logging/CSV.
+    Flatten nested dicts (for logging, CSV export).
     Args:
         d: dict (possibly nested)
         parent_key: prefix for keys
         sep: separator
     Returns:
-        flat dict
+        dict: flattened
     """
     items = []
     for k, v in d.items():
@@ -172,10 +173,10 @@ def flatten_dict(d, parent_key='', sep='.'):
             items.append((new_key, v))
     return dict(items)
 
-# === Reward Statistics ===
+# === Reward stats ===
 def compute_reward_stats(rewards):
     """
-    Compute mean, std, min, max for a reward sequence.
+    Compute mean, std, min, max for a sequence of rewards.
     Args:
         rewards: sequence
     Returns:
@@ -183,27 +184,27 @@ def compute_reward_stats(rewards):
     """
     rewards = np.array(rewards, dtype=float)
     if rewards.size == 0:
-        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
+        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0}
     return {
-        'mean': np.mean(rewards),
-        'std': np.std(rewards),
-        'min': np.min(rewards),
-        'max': np.max(rewards)
+        "mean": float(np.mean(rewards)),
+        "std": float(np.std(rewards)),
+        "min": float(np.min(rewards)),
+        "max": float(np.max(rewards))
     }
 
-# === Quantile Utilities ===
+# === Quantiles ===
 def compute_quantiles(values, quantiles):
     """
-    Compute arbitrary quantiles from a sequence.
+    Compute arbitrary quantiles for a sequence.
     Args:
         values: sequence
-        quantiles: list of quantile floats (0-1)
+        quantiles: list of floats (0-1)
     Returns:
         np.ndarray: quantile values
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
-        return np.array([])
+        return np.array([0.0 for _ in quantiles])
     return np.quantile(values, quantiles)
 
 
@@ -220,59 +221,55 @@ def compute_median(values):
         return 0.0
     return float(np.median(values))
 
-# === Min-Max Normalization ===
-def min_max_normalize(arr):
+# === Min-max normalize ===
+def min_max_normalize(values):
     """
     Scale array to [0, 1] range.
     Args:
-        arr: sequence
+        values: sequence of numbers
     Returns:
-        np.ndarray: normalized array
+        np.ndarray: normalized to [0, 1]
     """
-    arr = np.array(arr, dtype=float)
-    if arr.size == 0:
-        return np.array([])
-    min_val = np.min(arr)
-    max_val = np.max(arr)
-    if min_val == max_val:
-        return np.zeros_like(arr)
-    return (arr - min_val) / (max_val - min_val)
-
-# === GAE Advantage Estimation ===
-def compute_gae_advantages(rewards, values, next_values, dones, gamma=0.99, lam=0.95):
-    """
-    Generalized Advantage Estimation (GAE-Lambda).
-    Args:
-        rewards: [N,]
-        values: [N,]
-        next_values: [N,]
-        dones: [N,], bool/int
-        gamma: discount
-        lam: lambda parameter
-    Returns:
-        np.ndarray: advantages [N,]
-    """
-    rewards = np.array(rewards, dtype=float)
     values = np.array(values, dtype=float)
-    next_values = np.array(next_values, dtype=float)
-    dones = np.array(dones, dtype=bool)
-    N = len(rewards)
-    advantages = np.zeros(N, dtype=float)
+    if values.size == 0:
+        return np.array([])
+    vmin = np.min(values)
+    vmax = np.max(values)
+    if vmax == vmin:
+        return np.zeros_like(values)
+    return (values - vmin) / (vmax - vmin)
+
+# === GAE Advantage estimation ===
+def compute_gae_advantages(rewards, values, dones, gamma=0.99, lam=0.95):
+    """
+    Compute Generalized Advantage Estimation (GAE).
+    Args:
+        rewards: [T]
+        values: [T+1]
+        dones: [T] (bool)
+        gamma: discount factor
+        lam: GAE lambda
+    Returns:
+        np.ndarray: advantages [T]
+    """
+    T = len(rewards)
+    advantages = np.zeros(T)
     last_adv = 0.0
-    for t in reversed(range(N)):
-        delta = rewards[t] + gamma * next_values[t] * (1 - dones[t]) - values[t]
-        advantages[t] = last_adv = delta + gamma * lam * (1 - dones[t]) * last_adv
+    for t in reversed(range(T)):
+        nonterminal = 1.0 - float(dones[t])
+        delta = rewards[t] + gamma * values[t+1] * nonterminal - values[t]
+        advantages[t] = last_adv = delta + gamma * lam * nonterminal * last_adv
     return advantages
 
-# === Chunking Utility ===
+# === Chunking ===
 def chunked(iterable, batch_size: int):
     """
-    Yield successive batches of size batch_size from iterable.
+    Split sequence or iterable into batches of batch_size.
     Args:
         iterable: sequence or iterable
-        batch_size: batch size
+        batch_size: int
     Yields:
-        list: batch
+        list: batches
     """
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
@@ -290,3 +287,23 @@ def chunked(iterable, batch_size: int):
                 batch = []
         if batch:
             yield batch
+
+# === Discounted sum ===
+def compute_discounted_sum(values, gamma=0.99):
+    """
+    Compute discounted sum over a sequence.
+    Useful for estimating return from rewards.
+    Args:
+        values: sequence (e.g., rewards)
+        gamma: discount factor
+    Returns:
+        np.ndarray: discounted sums (same shape as input)
+    """
+    values = np.array(values, dtype=float)
+    n = len(values)
+    out = np.zeros_like(values)
+    running_sum = 0.0
+    for t in reversed(range(n)):
+        running_sum = values[t] + gamma * running_sum
+        out[t] = running_sum
+    return out
