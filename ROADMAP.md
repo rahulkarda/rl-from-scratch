@@ -23,7 +23,7 @@
 - [x] GAE for advantage estimation
 
 ## Phase 4: continuous control
-- [ ] DDPG on Pendulum
+- [x] DDPG on Pendulum
 - [ ] SAC with automatic entropy tuning
 
 ## Phase 5: comparison
