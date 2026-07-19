@@ -18,6 +18,7 @@ Purpose:
 - exponential_moving_average: Exponential smoothing for reward/loss curves (NEW)
 - compute_discounted_sum: Compute discounted sum over a sequence (NEW)
 - is_monotonic: Check if sequence is monotonic (NEW)
+- compute_mean_and_std: Compute mean and std for sequence (NEW)
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -151,69 +152,68 @@ def soft_update(target_net, source_net, tau: float):
         source_net: torch.nn.Module source
         tau: blend factor (0 < tau <= 1)
     """
-    for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
-        target_param.data.copy_(target_param.data * (1.0 - tau) + source_param.data * tau)
+    with torch.no_grad():
+        for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
+            target_param.data.copy_(tau * source_param.data + (1 - tau) * target_param.data)
 
-# === Dict flattening ===
+# === Dict Flattening ===
 def flatten_dict(d, parent_key='', sep='/'):
     """
-    Flatten nested dicts for logging and CSV compatibility.
+    Flatten a nested dictionary for logging.
     Args:
-        d: dict (possibly nested)
-        parent_key: prefix for keys
+        d: dict
+        parent_key: root key
         sep: separator
     Returns:
-        dict: flattened keys
+        dict: flattened
     """
     items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.abc.MutableMapping):
+        if isinstance(v, dict):
             items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
     return dict(items)
 
-# === Reward stats ===
+# === Reward Stats ===
 def compute_reward_stats(rewards):
     """
-    Summarize reward distribution: mean, std, min, max, median.
+    Compute mean, std, min, max for reward sequence.
     Args:
-        rewards: sequence of reward values
+        rewards: sequence
     Returns:
-        dict: stats summary
+        dict: {'mean', 'std', 'min', 'max'}
     """
     rewards = np.array(rewards, dtype=float)
     if rewards.size == 0:
-        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0}
+        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
     return {
-        "mean": float(np.mean(rewards)),
-        "std": float(np.std(rewards)),
-        "min": float(np.min(rewards)),
-        "max": float(np.max(rewards)),
-        "median": float(np.median(rewards)),
+        'mean': float(np.mean(rewards)),
+        'std': float(np.std(rewards)),
+        'min': float(np.min(rewards)),
+        'max': float(np.max(rewards)),
     }
 
-# === Quantile computation ===
+# === Quantiles ===
 def compute_quantiles(values, quantiles):
     """
-    Compute arbitrary quantiles of a sequence.
+    Compute arbitrary quantiles for a sequence.
     Args:
         values: sequence
-        quantiles: list of quantile floats in [0,1]
+        quantiles: list of quantiles (0..1)
     Returns:
         dict: quantile -> value
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
         return {q: 0.0 for q in quantiles}
-    qvals = np.quantile(values, quantiles)
-    return {q: float(v) for q, v in zip(quantiles, qvals)}
+    return {q: float(np.quantile(values, q)) for q in quantiles}
 
-# === Median computation ===
+# === Median ===
 def compute_median(values):
     """
-    Compute median of a sequence.
+    Compute median for a sequence.
     Args:
         values: sequence
     Returns:
@@ -227,7 +227,7 @@ def compute_median(values):
 # === Min-max normalization ===
 def min_max_normalize(values):
     """
-    Scale array to [0, 1] using min-max normalization.
+    Scale values to [0, 1] with min-max normalization.
     Args:
         values: sequence
     Returns:
@@ -236,72 +236,77 @@ def min_max_normalize(values):
     values = np.array(values, dtype=float)
     if values.size == 0:
         return np.array([])
-    minv = np.min(values)
-    maxv = np.max(values)
-    if minv == maxv:
+    vmin = np.min(values)
+    vmax = np.max(values)
+    if vmax == vmin:
         return np.zeros_like(values)
-    return (values - minv) / (maxv - minv)
+    return (values - vmin) / (vmax - vmin)
 
-# === GAE advantage estimation ===
-def compute_gae_advantages(rewards, values, dones, gamma: float, lam: float):
+# === GAE Advantage Estimation ===
+def compute_gae_advantages(rewards, values, next_values, dones, gamma, lam):
     """
     Generalized Advantage Estimation (GAE) for policy gradient methods.
     Args:
-        rewards: [T] float
-        values: [T+1] float (bootstrap value at final step)
-        dones: [T] bool
-        gamma: discount factor
-        lam: GAE lambda (smoothing)
+        rewards: np.ndarray or list (length T)
+        values: np.ndarray or list (length T)
+        next_values: np.ndarray or list (length T), V(s') for each step
+        dones: np.ndarray or list (length T) (bool)
+        gamma: float (discount)
+        lam: float (lambda)
     Returns:
-        np.ndarray: advantage estimates [T]
+        np.ndarray: advantage estimates (length T)
     """
+    rewards = np.array(rewards, dtype=float)
+    values = np.array(values, dtype=float)
+    next_values = np.array(next_values, dtype=float)
+    dones = np.array(dones, dtype=bool)
     T = len(rewards)
     advantages = np.zeros(T)
-    last_adv = 0.0
+    gae = 0.0
     for t in reversed(range(T)):
-        next_nonterminal = 1.0 - float(dones[t])
-        delta = rewards[t] + gamma * values[t+1] * next_nonterminal - values[t]
-        advantages[t] = last_adv = delta + gamma * lam * next_nonterminal * last_adv
+        delta = rewards[t] + gamma * next_values[t] * (not dones[t]) - values[t]
+        gae = delta + gamma * lam * gae * (not dones[t])
+        advantages[t] = gae
     return advantages
 
-# === Sequence chunking ===
+# === Chunked batching ===
 def chunked(seq, chunk_size: int):
     """
-    Split sequence into fixed-size chunks (for batching).
+    Yield successive chunk_size batches from seq.
     Args:
         seq: sequence
-        chunk_size: chunk length
+        chunk_size: int
     Yields:
-        list: chunk of chunk_size
+        list: chunk
     """
     seq = list(seq)
     for i in range(0, len(seq), chunk_size):
-        yield seq[i:i+chunk_size]
+        yield seq[i:i + chunk_size]
 
-# === Discounted sum utility ===
-def compute_discounted_sum(seq, gamma: float):
+# === Discounted sum ===
+def compute_discounted_sum(rewards, gamma):
     """
-    Compute discounted sum over a sequence: sum_t gamma^t * seq[t].
+    Compute discounted sum of rewards.
     Args:
-        seq: sequence
+        rewards: sequence
         gamma: discount factor
     Returns:
-        float: discounted sum
+        np.ndarray: discounted sums
     """
-    seq = np.array(seq, dtype=float)
-    if seq.size == 0:
-        return 0.0
-    return float(np.dot(seq, gamma ** np.arange(seq.size)))
+    rewards = np.array(rewards, dtype=float)
+    out = np.zeros_like(rewards)
+    running = 0.0
+    for t in reversed(range(len(rewards))):
+        running = rewards[t] + gamma * running
+        out[t] = running
+    return out
 
 # === Monotonicity check ===
 def is_monotonic(values, mode="increasing"):
     """
     Check if sequence is monotonic.
-    Args:
-        values: sequence
-        mode: 'increasing', 'decreasing', 'strict_increasing', 'strict_decreasing'
-    Returns:
-        bool: monotonicity result
+    mode: 'increasing', 'decreasing', 'strict_increasing', 'strict_decreasing'
+    Returns True if monotonic, else False.
     """
     values = np.array(values, dtype=float)
     if values.size <= 1:
@@ -316,3 +321,17 @@ def is_monotonic(values, mode="increasing"):
         return np.all(values[1:] < values[:-1])
     else:
         raise ValueError("mode must be one of 'increasing', 'decreasing', 'strict_increasing', 'strict_decreasing'")
+
+# === Mean and Std utility ===
+def compute_mean_and_std(values):
+    """
+    Compute mean and standard deviation for a sequence.
+    Args:
+        values: sequence of numbers
+    Returns:
+        tuple (mean, std): both floats
+    """
+    values = np.array(values, dtype=float)
+    if values.size == 0:
+        return 0.0, 0.0
+    return float(np.mean(values)), float(np.std(values))
