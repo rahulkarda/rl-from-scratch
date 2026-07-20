@@ -24,7 +24,7 @@
 
 ## Phase 4: continuous control
 - [x] DDPG on Pendulum
-- [ ] SAC with automatic entropy tuning
+- [ ] SAC with automatic entropy tuning  [in progress]
 
 ## Phase 5: comparison
 - [ ] Reward-curve plots across algorithms on the same env
