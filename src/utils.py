@@ -19,6 +19,7 @@ Purpose:
 - compute_discounted_sum: Compute discounted sum over a sequence (NEW)
 - is_monotonic: Check if sequence is monotonic (NEW)
 - compute_mean_and_std: Compute mean and std for sequence (NEW)
+- transitions_to_dicts: Convert list of Transition objects to list of dicts (NEW)
 
 Notes:
 - Functions accept lists, arrays, or sequences (e.g., rewards, losses) and return np.ndarray or dict.
@@ -149,75 +150,76 @@ def soft_update(target_net, source_net, tau: float):
     Polyak averaging for target network update.
     Args:
         target_net: torch.nn.Module to update
-        source_net: torch.nn.Module source
-        tau: blend factor (0 < tau <= 1)
+        source_net: torch.nn.Module to copy from
+        tau (float): mixing factor (0 < tau <= 1)
     """
     with torch.no_grad():
         for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
-            target_param.data.copy_(tau * source_param.data + (1 - tau) * target_param.data)
+            target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
 
-# === Dict Flattening ===
+# === Dict flattening ===
 def flatten_dict(d, parent_key='', sep='/'):
     """
-    Flatten a nested dictionary for logging.
+    Flatten nested dict for logging (e.g., {'a': {'b': 1}} -> {'a/b': 1}).
     Args:
         d: dict
-        parent_key: root key
+        parent_key: str
         sep: separator
     Returns:
-        dict: flattened
+        dict: flattened dict
     """
     items = []
     for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
             items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
     return dict(items)
 
-# === Reward Stats ===
+# === Reward stats ===
 def compute_reward_stats(rewards):
     """
-    Compute mean, std, min, max for reward sequence.
+    Compute mean, median, min, max, and std for rewards.
     Args:
         rewards: sequence
     Returns:
-        dict: {'mean', 'std', 'min', 'max'}
+        dict: {'mean', 'median', 'min', 'max', 'std'}
     """
     rewards = np.array(rewards, dtype=float)
     if rewards.size == 0:
-        return {'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0}
+        return {'mean': 0.0, 'median': 0.0, 'min': 0.0, 'max': 0.0, 'std': 0.0}
     return {
         'mean': float(np.mean(rewards)),
-        'std': float(np.std(rewards)),
+        'median': float(np.median(rewards)),
         'min': float(np.min(rewards)),
         'max': float(np.max(rewards)),
+        'std': float(np.std(rewards))
     }
 
 # === Quantiles ===
 def compute_quantiles(values, quantiles):
     """
-    Compute arbitrary quantiles for a sequence.
+    Compute specified quantiles for a sequence.
     Args:
         values: sequence
-        quantiles: list of quantiles (0..1)
+        quantiles: list of floats in [0, 1]
     Returns:
-        dict: quantile -> value
+        np.ndarray: quantile values
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
-        return {q: 0.0 for q in quantiles}
-    return {q: float(np.quantile(values, q)) for q in quantiles}
+        return np.array([0.0 for _ in quantiles])
+    return np.quantile(values, quantiles)
 
-# === Median ===
+# === Median utility ===
 def compute_median(values):
     """
     Compute median for a sequence.
     Args:
         values: sequence
     Returns:
-        float: median value
+        float: median
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
@@ -227,7 +229,7 @@ def compute_median(values):
 # === Min-max normalization ===
 def min_max_normalize(values):
     """
-    Scale values to [0, 1] with min-max normalization.
+    Normalize array to [0, 1] range.
     Args:
         values: sequence
     Returns:
@@ -243,81 +245,81 @@ def min_max_normalize(values):
     return (values - vmin) / (vmax - vmin)
 
 # === GAE Advantage Estimation ===
-def compute_gae_advantages(rewards, values, next_values, dones, gamma, lam):
+def compute_gae_advantages(rewards, values, next_values, dones, gamma: float, lam: float):
     """
-    Generalized Advantage Estimation (GAE) for policy gradient methods.
+    Generalized Advantage Estimation for policy gradient methods.
     Args:
-        rewards: np.ndarray or list (length T)
-        values: np.ndarray or list (length T)
-        next_values: np.ndarray or list (length T), V(s') for each step
-        dones: np.ndarray or list (length T) (bool)
-        gamma: float (discount)
-        lam: float (lambda)
+        rewards: np.ndarray of shape [batch]
+        values: np.ndarray of shape [batch]
+        next_values: np.ndarray of shape [batch] (next state values)
+        dones: np.ndarray of shape [batch] (bool/int: 1 if done, 0 otherwise)
+        gamma: float (discount factor)
+        lam: float (lambda for GAE)
     Returns:
-        np.ndarray: advantage estimates (length T)
+        np.ndarray: advantages [batch]
     """
     rewards = np.array(rewards, dtype=float)
     values = np.array(values, dtype=float)
     next_values = np.array(next_values, dtype=float)
-    dones = np.array(dones, dtype=bool)
-    T = len(rewards)
-    advantages = np.zeros(T)
+    dones = np.array(dones, dtype=float)
+    advantages = np.zeros_like(rewards)
     gae = 0.0
-    for t in reversed(range(T)):
-        delta = rewards[t] + gamma * next_values[t] * (not dones[t]) - values[t]
-        gae = delta + gamma * lam * gae * (not dones[t])
+    for t in reversed(range(len(rewards))):
+        delta = rewards[t] + gamma * next_values[t] * (1.0 - dones[t]) - values[t]
+        gae = delta + gamma * lam * (1.0 - dones[t]) * gae
         advantages[t] = gae
     return advantages
 
-# === Chunked batching ===
+# === Sequence chunking ===
 def chunked(seq, chunk_size: int):
     """
-    Yield successive chunk_size batches from seq.
+    Yield successive chunk_size-sized chunks from seq.
     Args:
-        seq: sequence
+        seq: sequence (list, array, etc)
         chunk_size: int
     Yields:
-        list: chunk
+        chunk: list
     """
     seq = list(seq)
     for i in range(0, len(seq), chunk_size):
-        yield seq[i:i + chunk_size]
+        yield seq[i:i+chunk_size]
 
 # === Discounted sum ===
-def compute_discounted_sum(rewards, gamma):
+def compute_discounted_sum(rewards, gamma: float):
     """
-    Compute discounted sum of rewards.
+    Compute discounted sum for rewards sequence.
     Args:
         rewards: sequence
-        gamma: discount factor
+        gamma: float (discount factor)
     Returns:
-        np.ndarray: discounted sums
+        float: discounted sum
     """
     rewards = np.array(rewards, dtype=float)
-    out = np.zeros_like(rewards)
-    running = 0.0
-    for t in reversed(range(len(rewards))):
-        running = rewards[t] + gamma * running
-        out[t] = running
-    return out
+    total = 0.0
+    for r in reversed(rewards):
+        total = r + gamma * total
+    return total
 
 # === Monotonicity check ===
-def is_monotonic(values, mode="increasing"):
+def is_monotonic(values, mode='increasing'):
     """
     Check if sequence is monotonic.
-    mode: 'increasing', 'decreasing', 'strict_increasing', 'strict_decreasing'
-    Returns True if monotonic, else False.
+    Args:
+        values: sequence
+        mode: 'increasing', 'decreasing', 'strict_increasing', 'strict_decreasing'
+    Returns:
+        bool
     """
     values = np.array(values, dtype=float)
-    if values.size <= 1:
+    if values.size < 2:
         return True
-    if mode == "increasing":
+    if mode == 'increasing':
         return np.all(values[1:] >= values[:-1])
-    elif mode == "decreasing":
+    elif mode == 'decreasing':
         return np.all(values[1:] <= values[:-1])
-    elif mode == "strict_increasing":
+    elif mode == 'strict_increasing':
         return np.all(values[1:] > values[:-1])
-    elif mode == "strict_decreasing":
+    elif mode == 'strict_decreasing':
         return np.all(values[1:] < values[:-1])
     else:
         raise ValueError("mode must be one of 'increasing', 'decreasing', 'strict_increasing', 'strict_decreasing'")
@@ -335,3 +337,22 @@ def compute_mean_and_std(values):
     if values.size == 0:
         return 0.0, 0.0
     return float(np.mean(values)), float(np.std(values))
+
+# === Transition list to dicts ===
+def transitions_to_dicts(transitions):
+    """
+    Convert a list of Transition objects (e.g., from replay buffer) to a list of dicts.
+    Args:
+        transitions: list of dataclass Transition objects (must have __dict__ or asdict)
+    Returns:
+        list[dict]: Each transition as a dict (for serialization, logging, inspection)
+    """
+    # Try dataclass asdict if available, else fallback to __dict__
+    from dataclasses import asdict
+    out = []
+    for t in transitions:
+        try:
+            out.append(asdict(t))
+        except Exception:
+            out.append(dict(t.__dict__))
+    return out
