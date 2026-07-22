@@ -41,28 +41,24 @@ class ReplayBuffer:
     """
     Uniform replay buffer for storing and sampling transitions.
 
-    Stores transitions as a fixed-size FIFO queue (deque) with uniform sampling.
+    Stores transitions in a fixed-size FIFO queue (deque) with uniform sampling.
     Used in value-based RL algorithms (e.g., DQN) to break correlation between sequential samples.
 
-    Usage:
-        buf = ReplayBuffer(capacity=50_000)
-        buf.push(Transition(...))
-        batch = buf.sample(batch_size=32)
-        buf.save('buffer.pkl')
-        buf.load('buffer.pkl')
-        buf.clear()
-        recent = buf.sample_recent(10)
-        all_transitions = buf.export_to_list()
-        for batch in buf.random_batch_iter(batch_size=32):
-            ... # iterates over random minibatches
+    Features:
+        - push: Add a transition, discards oldest if full
+        - sample: Uniformly sample a batch of transitions
+        - sample_recent: Get the most recent N transitions (ordered)
+        - export_to_list: Export all transitions as a list
+        - clear: Remove all transitions
+        - save/load: Serialize buffer to/from pickle file (as dicts)
+        - random_batch_iter: Yield random minibatches (for evaluation/analysis)
 
     Limitations:
-        - Only supports uniform sampling (no prioritization).
-        - Assumes transitions are dataclass objects (Transition).
-        - Not thread-safe; only use from one thread/process.
-        - Serialization via .save/.load uses dict conversion for compatibility.
+        - Only supports uniform sampling (no prioritization)
+        - Assumes transitions are dataclass objects (Transition)
+        - Not thread-safe; only use from one thread/process
+        - Serialization via .save/.load uses dict conversion for compatibility
     """
-
     def __init__(self, capacity: int = 50_000):
         """
         Initialize the replay buffer with a fixed capacity.
@@ -87,10 +83,8 @@ class ReplayBuffer:
 
         Args:
             batch_size (int): Number of transitions to sample.
-
         Returns:
-            List[Transition]: List of sampled transitions.
-
+            List[Transition]: Randomly chosen transitions.
         Raises:
             ValueError: If batch_size > number of transitions.
         """
@@ -100,14 +94,13 @@ class ReplayBuffer:
 
     def sample_recent(self, batch_size: int) -> List[Transition]:
         """
-        Sample the most recent N transitions (not random).
+        Get the most recent N transitions (not random; ordered oldest to newest).
         Useful for debugging, visualization, or on-policy algorithms.
 
         Args:
             batch_size (int): Number of transitions to return.
         Returns:
-            List[Transition]: Latest transitions (ordered: oldest to newest).
-
+            List[Transition]: Latest transitions (ordered).
         Raises:
             ValueError: If batch_size > number of transitions.
         """
@@ -117,11 +110,11 @@ class ReplayBuffer:
 
     def export_to_list(self) -> List[Transition]:
         """
-        Export all transitions in the buffer as a list.
+        Export all transitions in the buffer as a list (ordered oldest to newest).
         Useful for analysis or integration with external tools.
 
         Returns:
-            List[Transition]: All transitions (oldest to newest).
+            List[Transition]: All transitions (ordered).
         """
         return list(self.buffer)
 
@@ -145,27 +138,25 @@ class ReplayBuffer:
     def load(self, path: str) -> None:
         """
         Load buffer from a pickle file containing a list of transition dicts.
-        Overwrites current buffer.
 
         Args:
-            path (str): File path to load buffer.
+            path (str): File path to load buffer from.
         """
         with open(path, "rb") as f:
             data = pickle.load(f)
         self.buffer.clear()
-        for t_dict in data:
-            t = Transition(**t_dict)
-            self.buffer.append(t)
+        for d in data:
+            self.buffer.append(Transition(**d))
 
     def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
         """
-        Iterate over random minibatches (non-overlapping).
-        Useful for training epochs or analysis.
+        Iterate over the buffer in random minibatches (useful for evaluation/analysis).
+        Each batch is randomly selected without replacement.
 
         Args:
-            batch_size (int): Minibatch size.
+            batch_size (int): Size of each minibatch.
         Yields:
-            List[Transition]: Random minibatch.
+            List[Transition]: Random batch.
         """
         num_transitions = len(self.buffer)
         if batch_size < 1:
