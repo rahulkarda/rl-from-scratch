@@ -52,6 +52,9 @@ class ReplayBuffer:
         - clear: Remove all transitions
         - save/load: Serialize buffer to/from pickle file (as dicts)
         - random_batch_iter: Yield random minibatches (for evaluation/analysis)
+        - length: Current buffer size (NEW)
+        - __len__: Allows len(buffer) usage (NEW)
+        - size(): Returns current buffer size (NEW)
 
     Limitations:
         - Only supports uniform sampling (no prioritization)
@@ -144,14 +147,14 @@ class ReplayBuffer:
         """
         with open(path, "rb") as f:
             data = pickle.load(f)
-        self.buffer.clear()
-        for d in data:
-            self.buffer.append(Transition(**d))
+        self.clear()
+        for t_dict in data:
+            self.buffer.append(Transition(**t_dict))
 
     def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
         """
-        Iterate over the buffer in random minibatches (useful for evaluation/analysis).
-        Each batch is randomly selected without replacement.
+        Yield random minibatches (non-overlapping) of transitions.
+        Useful for evaluation/analysis.
 
         Args:
             batch_size (int): Size of each minibatch.
@@ -171,3 +174,28 @@ class ReplayBuffer:
             batch_indices = indices[start:end]
             batch = [buffer_list[j] for j in batch_indices]
             yield batch
+
+    @property
+    def length(self) -> int:
+        """
+        Current number of transitions in the buffer.
+        Returns:
+            int: Buffer size.
+        """
+        return len(self.buffer)
+
+    def size(self) -> int:
+        """
+        Returns current buffer size (number of transitions).
+        Returns:
+            int: Buffer size.
+        """
+        return len(self.buffer)
+
+    def __len__(self) -> int:
+        """
+        Allow usage of len(buffer) to query current size.
+        Returns:
+            int: Buffer size.
+        """
+        return len(self.buffer)
