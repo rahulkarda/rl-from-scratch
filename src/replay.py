@@ -31,6 +31,16 @@ import pickle
 
 @dataclass
 class Transition:
+    """
+    Single transition tuple for RL replay buffer.
+
+    Fields:
+        state (Any): Observation/state (can be np.ndarray, list, etc)
+        action (int): Action taken
+        reward (float): Reward received
+        next_state (Any): Next observation after action
+        done (bool): Whether episode terminated
+    """
     state: Any
     action: int
     reward: float
@@ -135,50 +145,44 @@ class ReplayBuffer:
             path (str): File path to save buffer.
         """
         with open(path, "wb") as f:
-            data = [asdict(t) for t in self.buffer]
-            pickle.dump(data, f)
+            dicts = [asdict(t) for t in self.buffer]
+            pickle.dump(dicts, f)
 
     def load(self, path: str) -> None:
         """
-        Load buffer from a pickle file containing a list of transition dicts.
+        Load buffer from a pickle file of transition dicts.
+        Overwrites current buffer contents.
 
         Args:
             path (str): File path to load buffer from.
         """
         with open(path, "rb") as f:
-            data = pickle.load(f)
-        self.clear()
-        for t_dict in data:
-            self.buffer.append(Transition(**t_dict))
+            dicts = pickle.load(f)
+            self.buffer.clear()
+            for d in dicts:
+                self.buffer.append(Transition(**d))
 
     def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
         """
-        Yield random minibatches (non-overlapping) of transitions.
-        Useful for evaluation/analysis.
+        Yield random minibatches of transitions from the buffer.
+        Useful for evaluation/analysis (not used in online training).
 
         Args:
-            batch_size (int): Size of each minibatch.
+            batch_size (int): Number of transitions per batch.
         Yields:
-            List[Transition]: Random batch.
+            List[Transition]: Random batch of transitions.
         """
-        num_transitions = len(self.buffer)
-        if batch_size < 1:
-            raise ValueError("batch_size must be >= 1")
-        if num_transitions == 0:
-            return
-        indices = list(range(num_transitions))
+        n = len(self.buffer)
+        indices = list(range(n))
         random.shuffle(indices)
-        buffer_list = list(self.buffer)  # Avoid repeated conversion inside loop
-        for start in range(0, num_transitions, batch_size):
-            end = start + batch_size
-            batch_indices = indices[start:end]
-            batch = [buffer_list[j] for j in batch_indices]
-            yield batch
+        for i in range(0, n, batch_size):
+            batch_indices = indices[i:i+batch_size]
+            yield [self.buffer[idx] for idx in batch_indices]
 
     @property
     def length(self) -> int:
         """
-        Current number of transitions in the buffer.
+        Returns current buffer size (number of transitions in the buffer).
         Returns:
             int: Buffer size.
         """
