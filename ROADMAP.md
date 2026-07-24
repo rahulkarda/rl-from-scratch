@@ -25,6 +25,10 @@
 ## Phase 4: continuous control
 - [x] DDPG on Pendulum
 - [ ] SAC with automatic entropy tuning  [in progress]
+    - [x] Actor-critic network skeleton
+    - [ ] SAC agent class and update logic
+    - [ ] Entropy tuning mechanism
+    - [ ] Training loop and logger integration
 
 ## Phase 5: comparison
 - [ ] Reward-curve plots across algorithms on the same env
