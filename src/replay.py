@@ -1,27 +1,41 @@
 """Uniform replay buffer for RL: stores transitions as FIFO, enables random sampling, and provides simple serialization.
 
-Rationale:
-- FIFO queue ensures oldest transitions are discarded first, matching classic DQN-style replay.
-- Uniform sampling breaks temporal correlations for value-based algorithms.
-- Serialization stores transitions as dicts for compatibility and easy inspection.
-- Not thread-safe; intended for single-process use.
+Overview:
+- Stores transitions as a FIFO queue (deque), discarding the oldest as new ones arrive.
+- Enables uniform random sampling for minibatch updates, breaking temporal correlations for stability in value-based RL (e.g. DQN).
+- Provides easy serialization: saves all transitions as dicts, not opaque objects, so buffer files are portable and inspectable.
+- Supports sampling the most recent N transitions (ordered), useful for debugging or on-policy algorithms.
+- Offers export of all transitions as a list for analysis or integration with external tools.
+- Not thread-safe; intended for single-process training.
 
 Usage:
+    from replay import ReplayBuffer, Transition
     buf = ReplayBuffer(capacity=50_000)
-    buf.push(Transition(...))
+    buf.push(Transition(state, action, reward, next_state, done))
     batch = buf.sample(batch_size=32)
-    buf.save('buffer.pkl')
-    buf.load('buffer.pkl')
-    buf.clear()
     recent = buf.sample_recent(10)
     all_transitions = buf.export_to_list()
     for batch in buf.random_batch_iter(batch_size=32):
         ... # iterates over random minibatches
+    buf.save('buffer.pkl')
+    buf.load('buffer.pkl')
+    buf.clear()
+    length = len(buf)
+    size = buf.size()
 
 Serialization:
-- .save(path): Pickles a list of transition dicts (not raw objects), so the file is portable and readable.
+- .save(path): Pickles a list of transition dicts (not raw objects), so the file is portable and readable. Useful for analysis or sharing.
 - .load(path): Reads dicts, reconstructs Transition dataclass (order preserved).
-- You can inspect the buffer file with Python or tools like pandas, since it's a list of dicts (not opaque objects).
+- Buffer files can be inspected with Python or pandas (it's a list of dicts).
+
+Design notes:
+- Uniform sampling ensures every transition has equal chance to be picked, matching classic DQN.
+- FIFO queue (deque) makes insertions/removals efficient and predictable.
+- Transitions are dataclasses for clarity and reliable serialization.
+- Not thread-safe (no locks); single-thread use only.
+- Sampling raises ValueError if batch_size exceeds buffer contents.
+- Methods return ordered lists (oldest to newest) where appropriate.
+
 """
 import random
 from collections import deque
@@ -131,16 +145,29 @@ class ReplayBuffer:
         """
         return list(self.buffer)
 
-    def clear(self) -> None:
+    def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
         """
-        Remove all transitions from the buffer.
+        Yield random batches (minibatches) from the buffer.
+        Useful for evaluation or batch analysis.
+
+        Args:
+            batch_size (int): Size of each batch.
+        Yields:
+            List[Transition]: Random batch.
         """
-        self.buffer.clear()
+        buf_list = list(self.buffer)
+        total = len(buf_list)
+        if batch_size > total:
+            raise ValueError(f"Cannot random_batch_iter batch_size={batch_size} from buffer with {total} transitions.")
+        indices = list(range(total))
+        random.shuffle(indices)
+        for i in range(0, total, batch_size):
+            batch_idx = indices[i:i+batch_size]
+            yield [buf_list[j] for j in batch_idx]
 
     def save(self, path: str) -> None:
         """
-        Serialize buffer to a pickle file as a list of dicts.
-
+        Serialize buffer to a pickle file as a list of transition dicts.
         Args:
             path (str): File path to save buffer.
         """
@@ -150,11 +177,9 @@ class ReplayBuffer:
 
     def load(self, path: str) -> None:
         """
-        Load buffer from a pickle file of transition dicts.
-        Overwrites current buffer contents.
-
+        Load buffer from a pickle file containing transition dicts.
         Args:
-            path (str): File path to load buffer from.
+            path (str): File path to load buffer.
         """
         with open(path, "rb") as f:
             dicts = pickle.load(f)
@@ -162,27 +187,15 @@ class ReplayBuffer:
             for d in dicts:
                 self.buffer.append(Transition(**d))
 
-    def random_batch_iter(self, batch_size: int) -> Iterator[List[Transition]]:
+    def clear(self) -> None:
         """
-        Yield random minibatches of transitions from the buffer.
-        Useful for evaluation/analysis (not used in online training).
-
-        Args:
-            batch_size (int): Number of transitions per batch.
-        Yields:
-            List[Transition]: Random batch of transitions.
+        Remove all transitions from the buffer.
         """
-        n = len(self.buffer)
-        indices = list(range(n))
-        random.shuffle(indices)
-        for i in range(0, n, batch_size):
-            batch_indices = indices[i:i+batch_size]
-            yield [self.buffer[idx] for idx in batch_indices]
+        self.buffer.clear()
 
-    @property
     def length(self) -> int:
         """
-        Returns current buffer size (number of transitions in the buffer).
+        Return current buffer size (number of transitions in the buffer).
         Returns:
             int: Buffer size.
         """
