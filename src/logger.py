@@ -35,12 +35,16 @@ Usage Example:
     logger.export_scalars_csv("exported_scalars.csv")  # Export readable CSV
     logger.export_episode_returns_csv("exported_returns.csv")  # Export readable CSV
 
-Notes:
-- All logs are appended, never overwritten. CSV files are readable by pandas, Excel, etc.
-- Scalar logging supports single and batch metrics; episode returns are always float.
-- JSON logging is for arbitrary experiment metadata/config (not structured metrics).
+Design notes:
+- Logs are append-only; files are never overwritten, so all experiment data is preserved.
+- CSV files are readable by pandas, Excel, or any spreadsheet tool.
+- Scalar logging supports both single metrics and batches (via log_scalars).
+- Histograms are stored as comma-separated values (convertible to np.ndarray).
+- Episode averages accumulate statistics for each episode, useful for reward/loss curves.
+- JSON logs are for metadata/config, not structured metrics; intended for experiment tracking.
 - Reading methods return lists of dicts or arrays for easy plotting/analysis.
-- Export methods copy CSV files for sharing or archiving results.
+- Export methods copy CSV files for archiving or sharing results.
+- Logger is thread-unsafe; intended for single-process training.
 """
 import os
 import csv
@@ -106,12 +110,9 @@ class Logger:
         self.scalars_path = os.path.join(log_dir, "scalars.csv")
         self.returns_path = os.path.join(log_dir, "episode_returns.csv")
         self.histograms_path = os.path.join(log_dir, "histograms.csv")
-        self.episode_averages_path = os.path.join(log_dir, "episode_averages.csv")
+        self.episode_avg_path = os.path.join(log_dir, "episode_averages.csv")
         self.json_path = os.path.join(log_dir, "logs.json")
-        # Ensure headers exist
-        self._init_files()
-
-    def _init_files(self):
+        # Initialize files if not exist
         if not os.path.exists(self.scalars_path):
             with open(self.scalars_path, "w", newline='') as f:
                 writer = csv.writer(f)
@@ -124,8 +125,8 @@ class Logger:
             with open(self.histograms_path, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["step", "name", "values"])
-        if not os.path.exists(self.episode_averages_path):
-            with open(self.episode_averages_path, "w", newline='') as f:
+        if not os.path.exists(self.episode_avg_path):
+            with open(self.episode_avg_path, "w", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(["episode", "name", "average", "count"])
         if not os.path.exists(self.json_path):
@@ -137,45 +138,39 @@ class Logger:
             writer = csv.writer(f)
             writer.writerow([step, name, value])
 
-    def log_scalars(self, scalars: Dict[str, float], step: int) -> None:
+    def log_scalars(self, metrics: Dict[str, float], step: int) -> None:
         with open(self.scalars_path, "a", newline='') as f:
             writer = csv.writer(f)
-            for name, value in scalars.items():
-                writer.writerow([step, name, value])
+            for k, v in metrics.items():
+                writer.writerow([step, k, v])
 
-    def log_episode_return(self, episode_return: float, episode: int) -> None:
-        """
-        Log episode return (total reward for an episode) to episode_returns.csv.
-        Args:
-            episode_return (float): Total reward for episode.
-            episode (int): Episode index.
-        """
+    def log_episode_return(self, value: float, episode: int) -> None:
         with open(self.returns_path, "a", newline='') as f:
             writer = csv.writer(f)
-            # Always write return as float for consistency
-            writer.writerow([episode, f"{float(episode_return):.6f}"])
+            writer.writerow([episode, value])
 
     def log_histogram(self, name: str, values: np.ndarray, step: int) -> None:
+        values_str = ','.join(map(str, values.tolist()))
         with open(self.histograms_path, "a", newline='') as f:
             writer = csv.writer(f)
-            # Convert values to comma-separated string
-            values_str = ','.join(str(v) for v in np.asarray(values).flatten())
             writer.writerow([step, name, values_str])
 
-    def log_episode_average(self, name: str, values: List[float], episode: int) -> None:
-        avg = float(np.mean(values)) if values else 0.0
+    def log_episode_average(self, name: str, values: Any, episode: int) -> None:
+        avg = float(np.mean(values)) if len(values) > 0 else 0.0
         count = len(values)
-        with open(self.episode_averages_path, "a", newline='') as f:
+        with open(self.episode_avg_path, "a", newline='') as f:
             writer = csv.writer(f)
             writer.writerow([episode, name, avg, count])
 
     def log_json(self, obj: Dict[str, Any]) -> None:
-        # Append JSON dict to logs.json
-        try:
+        # Append dict to logs.json
+        logs = []
+        if os.path.exists(self.json_path):
             with open(self.json_path, "r") as f:
-                logs = json.load(f)
-        except Exception:
-            logs = []
+                try:
+                    logs = json.load(f)
+                except Exception:
+                    logs = []
         logs.append(obj)
         with open(self.json_path, "w") as f:
             json.dump(logs, f, indent=2)
@@ -185,11 +180,7 @@ class Logger:
         with open(self.scalars_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                out.append({
-                    "step": int(row["step"]),
-                    "name": row["name"],
-                    "value": float(row["value"])
-                })
+                out.append({"step": int(row["step"]), "name": row["name"], "value": float(row["value"])})
         return out
 
     def read_episode_returns(self) -> List[float]:
@@ -197,7 +188,6 @@ class Logger:
         with open(self.returns_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # Always parse return as float
                 out.append(float(row["return"]))
         return out
 
@@ -206,17 +196,13 @@ class Logger:
         with open(self.histograms_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                values = [float(v) for v in row["values"].split(',') if v.strip() != '']
-                out.append({
-                    "step": int(row["step"]),
-                    "name": row["name"],
-                    "values": np.array(values)
-                })
+                values = np.array(list(map(float, row["values"].split(','))))
+                out.append({"step": int(row["step"]), "name": row["name"], "values": values})
         return out
 
     def read_episode_averages(self) -> List[Dict[str, Any]]:
         out = []
-        with open(self.episode_averages_path, "r") as f:
+        with open(self.episode_avg_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 out.append({
@@ -228,25 +214,23 @@ class Logger:
         return out
 
     def read_scalar_steps(self, name: str) -> List[tuple]:
-        """
-        Return sorted list of (step, value) for a given scalar metric.
-        """
-        steps = []
+        out = []
         with open(self.scalars_path, "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if row["name"] == name:
-                    steps.append((int(row["step"]), float(row["value"])))
-        steps.sort()
-        return steps
+                    out.append((int(row["step"]), float(row["value"])))
+        out.sort()
+        return out
 
     def read_json(self) -> List[Dict[str, Any]]:
-        try:
-            with open(self.json_path, "r") as f:
-                logs = json.load(f)
-        except Exception:
-            logs = []
-        return logs
+        if not os.path.exists(self.json_path):
+            return []
+        with open(self.json_path, "r") as f:
+            try:
+                return json.load(f)
+            except Exception:
+                return []
 
     def export_scalars_csv(self, export_path: str) -> None:
         """
