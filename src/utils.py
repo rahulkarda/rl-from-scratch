@@ -22,6 +22,7 @@ Purpose:
 - transitions_to_dicts: Convert list of Transition objects to list of dicts
 - pad_sequence_to_length: Pad sequence to fixed length with a value (NEW)
 - elementwise_min_max: Compute elementwise min or max between two arrays (NEW)
+- clip_array_values: Clip array values to [min, max] (NEW)
 
 Usage:
     from utils import set_seed, moving_average, soft_update, compute_gae_advantages
@@ -29,6 +30,7 @@ Usage:
     avg = moving_average([1,2,3,4], window_size=2)
     soft_update(target_net, source_net, tau=0.005)
     adv = compute_gae_advantages(rewards, values, next_values, dones, gamma=0.99, lam=0.95)
+    clipped = clip_array_values([1, 2, 10], min_value=0, max_value=5)
 
 Design notes:
 - All averaging and stats utilities handle empty input gracefully (returns empty array or zeros).
@@ -175,3 +177,17 @@ def soft_update(target_net, source_net, tau: float):
         return np.maximum(a_arr, b_arr)
     else:
         raise ValueError("mode must be 'min' or 'max'")
+
+# === Clip Utility ===
+def clip_array_values(arr, min_value, max_value):
+    """
+    Clip all values in an array or sequence to [min_value, max_value].
+    Args:
+        arr: sequence or np.ndarray
+        min_value: float (lower bound)
+        max_value: float (upper bound)
+    Returns:
+        np.ndarray: clipped array
+    """
+    arr = np.array(arr)
+    return np.clip(arr, min_value, max_value)
