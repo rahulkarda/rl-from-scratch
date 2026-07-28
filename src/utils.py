@@ -143,34 +143,247 @@ def exponential_moving_average(values, alpha: float):
         values: sequence of numbers
         alpha: smoothing factor (0 < alpha <= 1), higher is less smoothing
     Returns:
-        np.ndarray: exponential moving average (same length)
+        np.ndarray: smoothed array
     """
     values = np.array(values, dtype=float)
     if values.size == 0:
         return np.array([])
-    if not (0 < alpha <= 1):
-        raise ValueError("alpha must be in (0, 1]")
-    ema = np.empty_like(values)
-    ema[0] = values[0]
-    for i in range(1, len(values)):
-        ema[i] = alpha * values[i] + (1 - alpha) * ema[i - 1]
-    return ema
+    out = np.empty_like(values)
+    if values.size == 0:
+        return np.array([])
+    out[0] = values[0]
+    for i in range(1, values.size):
+        out[i] = alpha * values[i] + (1 - alpha) * out[i - 1]
+    return out
 
-# === Polyak Averaging ===
-def soft_update(target_net, source_net, tau: float):
+# === Polyak averaging ===
+def soft_update(target_net, source_net, tau: float) -> None:
     """
-    Polyak averaging for target network update.
+    Polyak averaging: update target_net parameters as tau * source + (1-tau) * target.
     Args:
-       ... [truncated]
-    b: sequence or np.ndarray
-        mode: "min" or "max" (default "min")
+        target_net: torch.nn.Module
+        source_net: torch.nn.Module
+        tau: float, mixing factor (0 < tau <= 1)
+    """
+    for target_param, source_param in zip(target_net.parameters(), source_net.parameters()):
+        target_param.data.copy_(tau * source_param.data + (1.0 - tau) * target_param.data)
+
+# === Dict flattening ===
+def flatten_dict(d, parent_key='', sep='.'):
+    """
+    Flatten nested dicts for logging (CSV, JSON).
+    Args:
+        d: dict
+        parent_key: str
+        sep: str
     Returns:
-        np.ndarray: elementwise min or max
+        flat dict
+    """
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+# === Reward stats ===
+def compute_reward_stats(rewards):
+    """
+    Compute mean, std, min, max for reward sequence.
+    Args:
+        rewards: sequence
+    Returns:
+        dict: {mean, std, min, max}
+    """
+    rewards = np.array(rewards, dtype=float)
+    if rewards.size == 0:
+        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0}
+    return {
+        "mean": float(np.mean(rewards)),
+        "std": float(np.std(rewards)),
+        "min": float(np.min(rewards)),
+        "max": float(np.max(rewards)),
+    }
+
+
+def compute_quantiles(values, quantiles):
+    """
+    Compute arbitrary quantiles for a sequence.
+    Args:
+        values: sequence
+        quantiles: list of floats in [0,1]
+    Returns:
+        np.ndarray: quantile values
+    """
+    values = np.array(values, dtype=float)
+    if values.size == 0:
+        return np.array([0.0]*len(quantiles))
+    return np.quantile(values, quantiles)
+
+
+def compute_median(values):
+    """
+    Compute median for a sequence.
+    Args:
+        values: sequence
+    Returns:
+        float: median value
+    """
+    values = np.array(values, dtype=float)
+    if values.size == 0:
+        return 0.0
+    return float(np.median(values))
+
+# === Min/max normalization ===
+def min_max_normalize(arr):
+    """
+    Normalize array to [0, 1] scale.
+    Args:
+        arr: sequence or np.ndarray
+    Returns:
+        np.ndarray: normalized array
+    """
+    arr = np.array(arr, dtype=float)
+    if arr.size == 0:
+        return np.array([])
+    min_val = np.min(arr)
+    max_val = np.max(arr)
+    if min_val == max_val:
+        return np.zeros_like(arr)
+    return (arr - min_val) / (max_val - min_val)
+
+# === GAE advantage estimation ===
+def compute_gae_advantages(rewards, values, next_values, dones, gamma=0.99, lam=0.95):
+    """
+    Generalized Advantage Estimation (GAE).
+    Args:
+        rewards: sequence of rewards
+        values: sequence of values
+        next_values: sequence of next values
+        dones: sequence of done flags
+        gamma: discount factor
+        lam: GAE lambda
+    Returns:
+        np.ndarray: GAE advantages
+    """
+    rewards = np.array(rewards, dtype=float)
+    values = np.array(values, dtype=float)
+    next_values = np.array(next_values, dtype=float)
+    dones = np.array(dones, dtype=float)
+    T = len(rewards)
+    adv = np.zeros(T)
+    last_gae = 0.0
+    for t in reversed(range(T)):
+        delta = rewards[t] + gamma * next_values[t] * (1 - dones[t]) - values[t]
+        last_gae = delta + gamma * lam * (1 - dones[t]) * last_gae
+        adv[t] = last_gae
+    return adv
+
+# === Chunking ===
+def chunked(seq, chunk_size):
+    """
+    Split sequence into fixed-size chunks.
+    Args:
+        seq: sequence
+        chunk_size: int
+    Returns:
+        generator of chunks
+    """
+    for i in range(0, len(seq), chunk_size):
+        yield seq[i:i+chunk_size]
+
+# === Discounted sum ===
+def compute_discounted_sum(rewards, gamma=0.99):
+    """
+    Compute discounted sum over a sequence.
+    Args:
+        rewards: sequence
+        gamma: discount factor
+    Returns:
+        np.ndarray: discounted sums
+    """
+    rewards = np.array(rewards, dtype=float)
+    out = np.zeros_like(rewards)
+    running_sum = 0.0
+    for t in reversed(range(len(rewards))):
+        running_sum = rewards[t] + gamma * running_sum
+        out[t] = running_sum
+    return out
+
+# === Monotonicity ===
+def is_monotonic(seq):
+    """
+    Check if sequence is monotonic (increasing or decreasing).
+    Args:
+        seq: sequence
+    Returns:
+        bool
+    """
+    seq = np.array(seq)
+    if seq.size < 2:
+        return True
+    return np.all(np.diff(seq) >= 0) or np.all(np.diff(seq) <= 0)
+
+# === Mean and std ===
+def compute_mean_and_std(seq):
+    """
+    Compute mean and std for a sequence.
+    Args:
+        seq: sequence
+    Returns:
+        tuple: (mean, std)
+    """
+    seq = np.array(seq, dtype=float)
+    if seq.size == 0:
+        return 0.0, 0.0
+    return float(np.mean(seq)), float(np.std(seq))
+
+# === Transition dict conversion ===
+def transitions_to_dicts(transitions):
+    """
+    Convert list of Transition objects to list of dicts.
+    Args:
+        transitions: list of dataclass objects
+    Returns:
+        list of dicts
+    """
+    return [t.__dict__ if hasattr(t, '__dict__') else t for t in transitions]
+
+# === Pad utility ===
+def pad_sequence_to_length(seq, length, pad_value=0):
+    """
+    Pad sequence to fixed length with pad_value. If longer, truncate.
+    Args:
+        seq: sequence
+        length: target length
+        pad_value: value to pad
+    Returns:
+        np.ndarray: padded or truncated sequence
+    """
+    seq = np.array(seq)
+    if seq.size == 0:
+        return np.array([])
+    if seq.size >= length:
+        return seq[:length]
+    out = np.full(length, pad_value)
+    out[:seq.size] = seq
+    return out
+
+# === Elementwise min/max ===
+def elementwise_min_max(a, b, mode="min"):
+    """
+    Compute elementwise min or max between two arrays.
+    Args:
+        a: array-like
+        b: array-like
+        mode: 'min' or 'max'
+    Returns:
+        np.ndarray
     """
     a_arr = np.array(a)
     b_arr = np.array(b)
-    if a_arr.shape != b_arr.shape:
-        raise ValueError("Shape mismatch: {} vs {}".format(a_arr.shape, b_arr.shape))
     if mode == "min":
         return np.minimum(a_arr, b_arr)
     elif mode == "max":
