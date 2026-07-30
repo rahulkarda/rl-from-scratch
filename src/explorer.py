@@ -4,15 +4,42 @@ import json
 
 class EpsilonGreedyExplorer:
     """
-    Epsilon-greedy action selection with linear decay schedule.
+    Epsilon-greedy action selection with linear decay schedule for RL.
 
-    Used in value-based RL for balancing exploration and exploitation.
-    Supports single and batch action selection, with reproducible state saving/loading.
+    Overview:
+    - Used in value-based RL (e.g., DQN) for balancing exploration and exploitation.
+    - Supports single and batch action selection, reproducible state saving/loading.
+    - Linear schedule: epsilon decreases from epsilon_start to epsilon_final over epsilon_decay steps.
+    - Step-wise control: explorer.step() increments counter for correct decay.
+    - Save/load state as JSON for reproducibility (including steps_done).
+
+    Usage Example:
+        from explorer import EpsilonGreedyExplorer
+        explorer = EpsilonGreedyExplorer(epsilon_start=1.0, epsilon_final=0.01, epsilon_decay=50000)
+        action = explorer.select_action(q_values)
+        explorer.step()
+        explorer.save('explorer.json')
+        explorer.load('explorer.json')
+        # Batch action selection:
+        batch_actions = explorer.sample_action(batch_q_values)
+        # Plot epsilon schedule:
+        eps_schedule = explorer.get_epsilon_schedule(max_steps=100_000)
 
     Args:
         epsilon_start (float): Initial epsilon (exploration probability).
         epsilon_final (float): Final epsilon after decay.
         epsilon_decay (int): Number of steps over which to linearly decay epsilon.
+
+    Design notes:
+    - Action selection methods:
+        * select_action: Single epsilon-greedy (random with prob epsilon, else argmax)
+        * argmax_action: Always argmax (greedy)
+        * random_action: Uniform random action
+        * sample_action: Batch epsilon-greedy for (batch_size, num_actions)
+    - Schedule is linear; supports plotting via get_epsilon_schedule.
+    - Steps_done controls decay; reset() resets schedule for new training run.
+    - save()/load() enable experiment reproducibility and checkpointing.
+    - Not thread-safe (intended for single-agent use).
     """
     def __init__(self, epsilon_start: float = 1.0, epsilon_final: float = 0.01, epsilon_decay: int = 50000):
         self.epsilon_start = epsilon_start
